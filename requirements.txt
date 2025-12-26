@@ -12,6 +12,9 @@ langchain-core==0.3.29
 langgraph==0.2.60
 langchain-nvidia-ai-endpoints==0.3.8
 
+# OpenAI SDK (used for NVIDIA NIM API)
+openai==1.58.1
+
 # Web Search
 tavily-python==0.5.0
 
