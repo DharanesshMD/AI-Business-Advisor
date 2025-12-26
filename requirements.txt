@@ -1,0 +1,25 @@
+# AI Business Advisor - Backend Dependencies
+
+# Web Framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+websockets==14.1
+python-multipart==0.0.18
+
+# LangChain & LangGraph
+langchain==0.3.14
+langchain-core==0.3.29
+langgraph==0.2.60
+langchain-nvidia-ai-endpoints==0.3.8
+
+# Web Search
+tavily-python==0.5.0
+
+# Configuration
+pydantic==2.10.4
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
+
+# Async Support
+httpx==0.28.1
+aiohttp==3.11.11

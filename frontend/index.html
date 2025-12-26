@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="ARIA - AI Business Advisor powered by NVIDIA Nemotron. Get real-time business advice with web search and location-aware regulations.">
+    <title>ARIA | AI Business Advisor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Animated Background -->
+        <div class="bg-gradient"></div>
+        <div class="bg-pattern"></div>
+
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                        </svg>
+                    </div>
+                    <div class="logo-text">
+                        <h1>ARIA</h1>
+                        <span>AI Business Advisor</span>
+                    </div>
+                </div>
+
+                <div class="header-controls">
+                    <div class="location-selector">
+                        <label for="location">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                                <circle cx="12" cy="10" r="3" />
+                            </svg>
+                        </label>
+                        <select id="location">
+                            <option value="India">India</option>
+                            <option value="United States">United States</option>
+                            <option value="United Kingdom">United Kingdom</option>
+                            <option value="Singapore">Singapore</option>
+                            <option value="UAE">UAE</option>
+                            <option value="Australia">Australia</option>
+                            <option value="Canada">Canada</option>
+                            <option value="Germany">Germany</option>
+                        </select>
+                    </div>
+
+                    <div class="connection-status" id="connectionStatus">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Connecting...</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Chat Area -->
+        <main class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <!-- Welcome Message -->
+                <div class="message system-message welcome-message">
+                    <div class="message-avatar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2L2 7L12 12L22 7L12 2Z" />
+                            <path d="M2 17L12 22L22 17" />
+                            <path d="M2 12L12 17L22 12" />
+                        </svg>
+                    </div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-sender">ARIA</span>
+                            <span class="message-badge">AI Advisor</span>
+                        </div>
+                        <div class="message-text">
+                            <p>👋 Welcome! I'm <strong>ARIA</strong>, your AI Business Advisor.</p>
+                            <p>I can help you with:</p>
+                            <ul>
+                                <li>🏢 Business strategy and planning</li>
+                                <li>📋 Government regulations and compliance</li>
+                                <li>💰 Financial planning and funding strategies</li>
+                                <li>🌐 Market research and competitor analysis</li>
+                            </ul>
+                            <p>I'll <strong>always search the web</strong> for real-time information and provide advice
+                                backed by current data and sources.</p>
+                            <p class="hint">Try asking: <em>"How do I register a tech startup in Bangalore?"</em></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ARIA Thinking Panel - Shows during processing -->
+            <div class="thinking-panel" id="thinkingPanel">
+                <div class="thinking-header">
+                    <div class="thinking-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2L2 7L12 12L22 7L12 2Z" />
+                        </svg>
+                    </div>
+                    <span class="thinking-title">ARIA is thinking...</span>
+                    <div class="thinking-spinner"></div>
+                </div>
+                <div class="thinking-logs" id="thinkingLogs">
+                    <!-- Logs will be dynamically added here -->
+                </div>
+            </div>
+
+            <!-- Typing Indicator (simplified) -->
+            <div class="typing-indicator" id="typingIndicator">
+                <div class="typing-avatar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" />
+                    </svg>
+                </div>
+                <div class="typing-content">
+                    <div class="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                    <span class="typing-text" id="typingText">ARIA is thinking...</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Input Area -->
+        <footer class="input-container">
+            <div class="input-wrapper">
+                <div class="input-box">
+                    <textarea id="messageInput" placeholder="Ask me anything about business..." rows="1"
+                        aria-label="Message input"></textarea>
+                    <button id="sendButton" class="send-button" aria-label="Send message">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="input-footer">
+                    <span class="powered-by">
+                        Powered by <strong>NVIDIA Llama 3.3 Nemotron Super</strong> •
+                        <span id="modelStatus">Ready</span>
+                    </span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Tool Status Toast -->
+    <div class="tool-toast" id="toolToast">
+        <div class="tool-toast-content">
+            <span class="tool-icon">🔍</span>
+            <span class="tool-text" id="toolText">Searching the web...</span>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>
