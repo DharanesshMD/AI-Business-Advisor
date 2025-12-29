@@ -20,7 +20,7 @@ graph TD
     end
     
     subgraph "External Services"
-        AgentSearch -->|API| Tavily[Tavily Search]
+        AgentSearch -->|API| Perplexity[Perplexity Sonar]
         AgentReg -->|API| NIM[NVIDIA NIM API]
         AgentFin -->|API| NIM
         NIM -.->|Model| Nemotron[Llama 3.1 Nemotron 70B]
@@ -42,7 +42,7 @@ graph TD
 | **Agent Orchestration** | **LangChain + LangGraph** | Manages the state and loops of the agent. Nemotron is specifically fine-tuned to handle these complex multi-turn flows better than stock Llama models. |
 | **LLM Engine** | **NVIDIA Llama 3.1 Nemotron 70B** | **(NEW)** Replaces GPT-4 Turbo. Selected for its #1 ranking on the *Harder* reasoning benchmark, ensuring high-accuracy business advice without the latency/cost of 405B models. |
 | **Inference Platform** | **NVIDIA NIM** | Provides optimized inference (TensorRT-LLM) for low-latency responses, critical for a real-time advisory chat. |
-| **Web Search** | **Tavily API** | Optimized for LLMs; returns clean text + citations to ground Nemotron's responses in current facts. |
+| **Web Search** | **Perplexity (Sonar)** | Optimized for LLMs; returns clean text + citations to ground Nemotron's responses in current facts. |
 | **Database** | **PostgreSQL** | Relational data + Vector storage. |
 | **Infrastructure** | **Docker + Cloud Run** | Serverless container deployment. |
 
@@ -55,7 +55,7 @@ The `Nemotron 70B` model is specifically architected for this "Hub-and-Spoke" fl
 1.  **Orchestrator (The Hub):** The `Business Advisor Agent` receives the user query.
 2.  **Instruction Following:** Nemotron is used here because it adheres strictly to system prompts (e.g., "You are a Senior Consultant in India"), unlike generic models that often drift from persona.
 3.  **Routing & Reasoning:**
-    *   *Need market data?* $\rightarrow$ Nemotron generates correct JSON arguments to call **Tavily Search**.
+    *   *Need market data?* $\rightarrow$ Nemotron generates correct JSON arguments to call **Perplexity Search**.
     *   *Need legal check?* $\rightarrow$ Nemotron synthesizes specific legal queries.
 4.  **Synthesis:** The Orchestrator gathers tool outputs. Nemotron's high score on reasoning benchmarks ensures it doesn't just summarize but *analyzes* the conflict between a regulation found in search and the user's business context.
 

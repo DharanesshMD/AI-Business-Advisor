@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # API Keys
     NVIDIA_API_KEY: str = ""
     TAVILY_API_KEY: str = ""
+    SONAR_API_KEY: str = ""
     
     # Model Configuration
     MODEL_NAME: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"

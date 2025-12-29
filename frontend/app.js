@@ -35,6 +35,7 @@ const state = {
     reconnectAttempts: 0,
     pingInterval: null,
     location: 'India',
+    searchProvider: 'tavily',
     thinkingLogs: [],
     inlineThinkingElement: null,  // Reference to inline thinking section in chat
     inlineThinkingContent: null,  // Reference to content area of inline thinking
@@ -58,6 +59,7 @@ const elements = {
     thinkingPanel: document.getElementById('thinkingPanel'),
     thinkingLogs: document.getElementById('thinkingLogs'),
     xaiToggle: document.getElementById('xaiToggle'),
+    searchProvider: document.getElementById('searchProvider'),
 };
 
 // =============================================================================
@@ -285,11 +287,14 @@ function sendMessage() {
     elements.messageInput.style.height = 'auto';
 
     // Send to server
-    state.socket.send(JSON.stringify({
+    const payload = {
         type: 'message',
         content: message,
         location: state.location,
-    }));
+        search_provider: state.searchProvider,
+    };
+    console.log('Sending WebSocket message:', payload);
+    state.socket.send(JSON.stringify(payload));
 
     // Reset current message buffer
     state.currentMessage = '';
@@ -770,6 +775,14 @@ elements.locationSelect.addEventListener('change', (e) => {
 setInterval(() => {
     elements.sendButton.disabled = !state.isConnected || state.isTyping;
 }, 100);
+
+// Search Provider change
+if (elements.searchProvider) {
+    elements.searchProvider.addEventListener('change', (e) => {
+        state.searchProvider = e.target.value;
+        console.log('Search Provider changed to:', state.searchProvider);
+    });
+}
 
 // XAI Toggle
 if (elements.xaiToggle) {

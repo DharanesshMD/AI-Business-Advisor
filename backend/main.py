@@ -8,6 +8,7 @@ import asyncio
 import time
 import queue
 import threading
+import contextvars
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -20,6 +21,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 from backend.config import get_settings
 from backend.agents.graph import create_advisor_graph
+from backend.agents.tools import set_search_provider
 from backend.logger import get_logger
 
 
@@ -102,7 +104,7 @@ def sanitize_log_for_ui(log_entry: dict) -> dict:
         "Formatted result length": "Retrieved information",
         "chat/completions": "AI model",
         "NVIDIA NIM": "AI Service",
-        "Tavily": "Web Search",
+        "Perplexity": "Web Search (Perplexity)",
     }
     
     for old, new in replacements.items():
@@ -321,11 +323,17 @@ async def websocket_chat(websocket: WebSocket):
             if message_data.get("type") == "message":
                 request_id = logger.new_request()
                 logger.separator(f"WEBSOCKET CHAT REQUEST #{request_id}")
+                logger.debug(f"Received message keys: {list(message_data.keys())}")
                 
                 user_message = message_data.get("content", "")
                 location = message_data.get("location", "India")
+                search_provider = message_data.get("search_provider", "tavily")
                 
                 logger.user_input(user_message, location)
+                logger.debug(f"Search provider: {search_provider}")
+                
+                # Set search provider context for this request
+                set_search_provider(search_provider)
                 
                 if not user_message.strip():
                     logger.debug("Empty message received, skipping")
@@ -426,8 +434,11 @@ async def websocket_chat(websocket: WebSocket):
                     await send_thinking_log("prompt_preparation", f"Analyzing: \"{user_message[:50]}...\"")
                     await asyncio.sleep(0.1)
                     
+                    # Capture context to propagate search provider
+                    ctx = contextvars.copy_context()
+                    
                     # Create a task for the graph execution
-                    graph_task = loop.run_in_executor(None, run_graph)
+                    graph_task = loop.run_in_executor(None, ctx.run, run_graph)
                     
                     # Poll for thinking logs while graph is running
                     last_log_index = 0

@@ -9,7 +9,7 @@ An AI-powered business advisory chatbot built with **NVIDIA Llama 3.1 Nemotron 7
 ## ✨ Features
 
 - **🤖 ARIA Persona** - Senior Business Consultant with 20+ years of experience
-- **🔍 Real-time Web Search** - Powered by Tavily for current market data
+- **🔍 Real-time Web Search** - Powered by Perplexity (Sonar) for current market data
 - **📍 Location-Aware** - Advice tailored to local regulations and markets
 - **⚡ Streaming Responses** - Real-time token streaming via WebSocket
 - **🎨 Modern UI** - Premium dark theme with glassmorphism design
@@ -21,7 +21,7 @@ An AI-powered business advisory chatbot built with **NVIDIA Llama 3.1 Nemotron 7
 
 - Python 3.11+
 - [NVIDIA API Key](https://build.nvidia.com) - For Nemotron 70B model
-- [Tavily API Key](https://tavily.com) - For web search
+- [Perplexity API Key](https://docs.perplexity.ai) - For web search
 
 ### Installation
 
@@ -79,7 +79,7 @@ AI-Business-Advisor/
 │   ├── config.py            # Environment configuration
 │   └── agents/
 │       ├── advisor.py       # ARIA persona & system prompt
-│       ├── tools.py         # Tavily search tools
+│       ├── tools.py         # Perplexity search tools
 │       └── graph.py         # LangGraph orchestration
 ├── frontend/
 │   ├── index.html           # Chat interface

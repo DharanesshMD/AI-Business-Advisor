@@ -18,6 +18,7 @@ openai==1.58.1
 # Web Search
 tavily-python==0.5.0
 
+
 # Configuration
 pydantic==2.10.4
 pydantic-settings==2.7.0
@@ -26,3 +27,6 @@ python-dotenv==1.0.1
 # Async Support
 httpx==0.28.1
 aiohttp==3.11.11
+
+# Perplexity SDK
+perplexityai
