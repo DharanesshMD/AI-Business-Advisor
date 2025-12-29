@@ -57,6 +57,7 @@ const elements = {
     modelStatus: document.getElementById('modelStatus'),
     thinkingPanel: document.getElementById('thinkingPanel'),
     thinkingLogs: document.getElementById('thinkingLogs'),
+    xaiToggle: document.getElementById('xaiToggle'),
 };
 
 // =============================================================================
@@ -645,6 +646,43 @@ function escapeHtml(text) {
 }
 
 // =============================================================================
+// XAI Parsing Logic
+// =============================================================================
+
+function applyXAIParsing(html) {
+    // 1. Causal Explanation Wrapper
+    // Pattern: <strong>Causal Explanation</strong>:? (content)
+    html = html.replace(
+        /<p><strong>Causal Explanation<\/strong>:?\s*([\s\S]*?)<\/p>/g,
+        '<div class="xai-container"><div class="xai-header">🧠 Causal Reasoning (The Why)</div><div class="xai-content">$1</div></div>'
+    );
+
+    // 2. Ethical/Regulatory Check
+    // Pattern: <strong>Ethical & Regulatory Check</strong>
+    html = html.replace(
+        /<p><strong>Ethical & Regulatory Check<\/strong>:?<\/p>([\s\S]*?)<\/ul>/g,
+        '<div class="xai-container"><div class="xai-header">🛡️ Ethical Guardrails</div><div class="xai-content">$1</ul></div></div>'
+    );
+
+    // 3. Counterfactuals (Recourse)
+    // Pattern: <strong>Counterfactuals.*?</strong>
+    html = html.replace(
+        /<p><strong>Counterfactuals.*?<\/strong>:?<\/p>/g,
+        '<div class="recourse-box"><div class="recourse-title">⚡ Recourse (Counterfactuals)</div>'
+    );
+    // Note: The recourse content usually follows. We just style the header and let the content flow or wrap it if possible.
+    // Better strategy for Recourse: identifying the section
+
+    // 4. Compliance Status Badges (Green/Yellow/Red)
+    html = html.replace(/\[Compliance Status\]:?\s*\[?(Green|Yellow|Red)\]?/gi, (match, color) => {
+        return `<span class="compliance-badge ${color.toLowerCase()}"><span class="status-dot"></span>${color.toUpperCase()} Compliance</span>`;
+    });
+
+    return html;
+}
+
+
+// =============================================================================
 // Markdown Rendering (Basic)
 // =============================================================================
 
@@ -698,7 +736,7 @@ function renderMarkdown(text) {
         html = '<p>' + html + '</p>';
     }
 
-    return html;
+    return applyXAIParsing(html);
 }
 
 // =============================================================================
@@ -732,6 +770,21 @@ elements.locationSelect.addEventListener('change', (e) => {
 setInterval(() => {
     elements.sendButton.disabled = !state.isConnected || state.isTyping;
 }, 100);
+
+// XAI Toggle
+if (elements.xaiToggle) {
+    elements.xaiToggle.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            document.body.classList.add('xai-active');
+        } else {
+            document.body.classList.remove('xai-active');
+        }
+    });
+    // Init state
+    if (elements.xaiToggle.checked) {
+        document.body.classList.add('xai-active');
+    }
+}
 
 // =============================================================================
 // Initialize
