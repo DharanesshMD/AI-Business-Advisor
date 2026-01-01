@@ -30,3 +30,13 @@ aiohttp==3.11.11
 
 # Perplexity SDK
 perplexityai
+
+# Phase 1: Quantitative Finance & Infrastructure
+numpy==1.26.3
+pandas==2.1.4
+scipy==1.11.4
+finnhub-python==2.4.19
+redis==5.0.1
+neo4j==5.16.0
+asyncpg==0.29.0
+uvloop==0.19.0 ; sys_platform != "win32"

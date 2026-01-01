@@ -1,0 +1,145 @@
+Goal
+Build the next phase of the ARIA Quantitative Finance Extension, following the detailed specification and patterns provided.
+
+What to Build
+Phase 1: Foundation & Portfolio Agent
+
+Set up the development environment with Docker (PostgreSQL, Neo4j, Redis, FastAPI).
+
+Implement the Portfolio Analysis Agent with:
+
+Value-at-Risk (VaR) and Conditional VaR (CVaR) calculations.
+
+Sharpe and Sortino ratios.
+
+Monte Carlo simulations for risk analysis.
+
+Real-time WebSocket streaming for portfolio updates.
+
+Integrate market data (Finnhub API) with caching (Redis).
+
+Build a FastAPI backend with REST and WebSocket endpoints.
+
+Create a React frontend dashboard for portfolio metrics and real-time updates.
+
+Phase 2: AI Agents & Market Intelligence
+
+Implement Market Sentiment Agent:
+
+Aggregate news, earnings, analyst ratings, and technical indicators.
+
+Synthesize real-time sentiment scores.
+
+Build Risk Management Agent:
+
+Continuous portfolio monitoring.
+
+Anomaly detection and hedging recommendations.
+
+Develop Financial Document Agent:
+
+Parse and analyze SEC filings (10-K, 10-Q).
+
+Extract financial metrics and risks.
+
+Store data in a Neo4j knowledge graph.
+
+Phase 3: Deal Intelligence & Valuation
+
+Implement Deal Intelligence Agent:
+
+Target identification for M&A.
+
+Valuation models (DCF, Comparable Companies, Precedent Transactions).
+
+Regulatory risk assessment (FTC HHI analysis).
+
+Build regulatory analysis engine for deal approvals.
+
+Phase 4: Production Hardening
+
+Optimize performance (database queries, LLM calls, WebSocket throughput).
+
+Harden security (data encryption, authentication, audit logging).
+
+Run system integration and load testing.
+
+Deploy to production with monitoring.
+
+How to Execute
+Read and Understand
+
+Review the AGENT_BUILD_SPECIFICATION.md for your assigned phase.
+
+Study the portfolio_agent_starter.py for code patterns.
+
+Set Up Environment
+
+Initialize Git repository and Docker environment.
+
+Configure PostgreSQL, Neo4j, and Redis.
+
+Set up FastAPI and React frontend.
+
+Implement Agents
+
+Follow the task breakdown for your phase.
+
+Use async/await patterns for real-time performance.
+
+Inherit from the BaseAgent class for consistency.
+
+Integrate Data
+
+Connect to market data APIs (Finnhub, Polygon.io, SEC Edgar).
+
+Implement caching and fallback logic.
+
+Store data in PostgreSQL and Neo4j.
+
+Build APIs
+
+Create REST endpoints for synchronous requests.
+
+Implement WebSocket endpoints for real-time streaming.
+
+Ensure CORS, rate limiting, and error handling.
+
+Develop Frontend
+
+Build a dashboard to display portfolio metrics, risk analysis, and market sentiment.
+
+Connect to WebSocket for real-time updates.
+
+Ensure responsive design and dark glassmorphism style.
+
+Test Thoroughly
+
+Write unit tests for calculations and logic.
+
+Run integration tests with real databases and APIs.
+
+Benchmark performance (response time, throughput).
+
+Security scan for vulnerabilities.
+
+Deploy and Monitor
+
+Optimize for production (performance, security).
+
+Deploy with Docker and Kubernetes.
+
+Set up monitoring and alerting.
+
+Acceptance Criteria
+All agents are functional and pass unit/integration tests.
+
+Response time for portfolio analysis is <500ms.
+
+WebSocket streaming works for real-time updates.
+
+Frontend dashboard displays all metrics and real-time data.
+
+Security is hardened with encryption and audit logging.
+
+System is scalable and can handle 1000+ concurrent users.

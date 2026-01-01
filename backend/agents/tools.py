@@ -17,39 +17,12 @@ from backend.logger import get_logger
 # Load environment variables from .env file
 load_dotenv()
 
-# Context Variable to store the search provider for the current request context
-search_provider_var: ContextVar[str] = ContextVar("search_provider", default="tavily")
-
-def set_search_provider(provider: str):
-    """Set the search provider for the current context."""
-    get_logger().debug(f"DEBUG: Setting search provider to: '{provider}'")
-    search_provider_var.set(provider)
-
-def get_search_provider() -> str:
-    """Get the current search provider."""
-    return search_provider_var.get()
-
-
-def get_tavily_client() -> TavilyClient:
-    """Get Tavily client instance."""
-    logger = get_logger()
-    api_key = os.getenv("TAVILY_API_KEY", "")
-    if not api_key:
-        logger.error("TAVILY_API_KEY environment variable is required")
-        raise ValueError("TAVILY_API_KEY environment variable is required")
-    logger.debug(f"Tavily API Key loaded (length: {len(api_key)})")
-    return TavilyClient(api_key=api_key)
-
-
-def get_perplexity_client() -> Perplexity:
-    """Get Perplexity client instance."""
-    logger = get_logger()
-    api_key = os.getenv("SONAR_API_KEY", "")
-    if not api_key:
-        logger.error("SONAR_API_KEY environment variable is required")
-        raise ValueError("SONAR_API_KEY environment variable is required")
-    logger.debug(f"Perplexity API Key loaded (length: {len(api_key)})")
-    return Perplexity(api_key=api_key)
+from backend.agents.utils import (
+    get_search_provider, 
+    set_search_provider, 
+    get_tavily_client, 
+    get_perplexity_client
+)
 
 
 @tool
@@ -263,10 +236,209 @@ def _search_regulations_perplexity(topic: str, location: str, regulation_type: O
         return f"Error: {str(e)}"
 
 
+@tool
+def analyze_portfolio_tool(holdings_json: str) -> str:
+    """
+    Analyze a financial portfolio to calculate risk metrics (VaR, CVaR), 
+    performance ratios (Sharpe, Sortino), and run Monte Carlo simulations.
+    
+    Use this tool when the user asks to:
+    - Analyze their stock portfolio
+    - Calculate risk or Value at Risk (VaR)
+    - Project future portfolio value
+    - Check portfolio health
+    
+    Args:
+        holdings_json: A JSON string representing the list of holdings.
+                       Each item must have 'symbol' (str) and 'quantity' (float).
+                       Optional: 'purchase_price' (float).
+                       Example: '[{"symbol": "AAPL", "quantity": 10, "purchase_price": 150}, {"symbol": "NVDA", "quantity": 5}]'
+    
+    Returns:
+        A JSON string containing the analysis results (metrics, risk, projections).
+    """
+    logger = get_logger()
+    logger.separator(f"PORTFOLIO TOOL CALLED")
+    
+    try:
+        import json
+        from backend.agents.portfolio import get_portfolio_agent # Local Import
+        holdings = json.loads(holdings_json)
+        
+        # Validate format
+        if not isinstance(holdings, list):
+            return "Error: holdings_json must parse to a list of dictionaries."
+            
+        logger.debug(f"Analyzing {len(holdings)} holdings...")
+        
+        # Get agent and run analysis (sync wrapper for async method)
+        import asyncio
+        agent = get_portfolio_agent()
+        
+        # We need to run the async method in a synchronous tool
+        # Since we are already in an event loop (FastAPI), we shouldn't use run()
+        # But this tool is run in a threadpool by LangChain, so we can use a new loop or run_coroutine_threadsafe
+        # Simplest valid approach for LangChain tools:
+        
+        try:
+             loop = asyncio.get_event_loop()
+        except RuntimeError:
+             loop = asyncio.new_event_loop()
+             asyncio.set_event_loop(loop)
+             
+        if loop.is_running():
+            # If we are in a running loop (unlikely in threadpool, but possible), 
+            # we might need to handle differently.
+            # safe hack: run_in_executor
+            future = asyncio.run_coroutine_threadsafe(agent.analyze_portfolio(holdings), loop)
+            result = future.result()
+        else:
+            result = loop.run_until_complete(agent.analyze_portfolio(holdings))
+            
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        logger.error("Portfolio tool error", e)
+        return f"Error analyzing portfolio: {str(e)}"
+
+
+@tool
+def analyze_sentiment_tool(symbol: str) -> str:
+    """
+    Analyze market sentiment for a specific stock symbol using news and social data.
+    
+    Use this tool when you need to:
+    - Gauge market mood (Bullish/Bearish)
+    - Understand why a stock is moving
+    - Get a sentiment score (-1 to 1)
+    
+    Args:
+        symbol: Stock ticker symbol (e.g., AAPL, NVDA)
+        
+    Returns:
+        JSON string with sentiment score, classification, and summary.
+    """
+    try:
+        import asyncio
+        import json
+        from backend.agents.sentiment import get_sentiment_agent
+        
+        agent = get_sentiment_agent()
+        
+        # Async helper
+        try:
+             loop = asyncio.get_event_loop()
+        except RuntimeError:
+             loop = asyncio.new_event_loop()
+             asyncio.set_event_loop(loop)
+             
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(agent.analyze_sentiment(symbol), loop)
+            result = future.result()
+        else:
+            result = loop.run_until_complete(agent.analyze_sentiment(symbol))
+            
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error analyzing sentiment: {str(e)}"
+
+@tool
+def check_risk_tool(holdings_json: str) -> str:
+    """
+    Check if a portfolio violates common risk constraints.
+    
+    Use this tool to:
+    - Validate if a portfolio is too risky
+    - Check for concentration risk (too much in one asset)
+    - Get hedging suggestions
+    
+    Args:
+        holdings_json: JSON string of holdings list (same format as portfolio tool)
+        
+    Returns:
+        JSON string with health status, alerts, and hedging advice.
+    """
+    try:
+        import asyncio
+        import json
+        from backend.agents.risk import get_risk_agent
+        
+        holdings = json.loads(holdings_json)
+        agent = get_risk_agent()
+        
+        # Default constraints
+        constraints = {
+            "max_var_95": 0.05,
+            "min_sharpe": 0.5,
+            "max_single_position": 0.25
+        }
+        
+        try:
+             loop = asyncio.get_event_loop()
+        except RuntimeError:
+             loop = asyncio.new_event_loop()
+             asyncio.set_event_loop(loop)
+             
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(agent.check_portfolio_risk(holdings, constraints), loop)
+            result = future.result()
+        else:
+            result = loop.run_until_complete(agent.check_portfolio_risk(holdings, constraints))
+            
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error checking risk: {str(e)}"
+
+@tool
+def search_filings_tool(symbol: str) -> str:
+    """
+    Search and analyze SEC 10-K filings for risk factors.
+    
+    Use this tool to:
+    - Find fundamental risks (Regulatory, Supply Chain)
+    - Extract "Risk Factors" from official documents
+    - Populate the Knowledge Graph
+    
+    Args:
+        symbol: Stock ticker symbol
+        
+    Returns:
+        JSON string with extracted risks.
+    """
+    try:
+        import asyncio
+        import json
+        from backend.agents.filings import get_filings_agent
+        
+        agent = get_filings_agent()
+        
+        try:
+             loop = asyncio.get_event_loop()
+        except RuntimeError:
+             loop = asyncio.new_event_loop()
+             asyncio.set_event_loop(loop)
+             
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(agent.analyze_risks(symbol), loop)
+            result = future.result()
+        else:
+            result = loop.run_until_complete(agent.analyze_risks(symbol))
+            
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error analyzing filings: {str(e)}"
+
 def get_tools() -> list:
     """Get all available tools for the advisor agent."""
     logger = get_logger()
-    tools = [web_search, search_regulations]
+    tools = [
+        web_search, 
+        search_regulations, 
+        analyze_portfolio_tool,
+        analyze_sentiment_tool,
+        check_risk_tool,
+        search_filings_tool
+    ]
     logger.system(f"Loading {len(tools)} tools: {[t.name for t in tools]}")
     return tools
 
