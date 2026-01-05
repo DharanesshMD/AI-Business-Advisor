@@ -428,6 +428,79 @@ def search_filings_tool(symbol: str) -> str:
     except Exception as e:
         return f"Error analyzing filings: {str(e)}"
 
+
+@tool
+def validate_stock_price(symbol: str) -> str:
+    """
+    Validate or check the current real-time price of a stock using Yahoo Finance.
+    
+    Use this tool when:
+    - You need to confirm a stock price from a free, independent source.
+    - You want to double-check the values returned by other tools.
+    - The user specifically asks to check the "real" or "current" price.
+    
+    Args:
+        symbol: Stock ticker symbol (e.g., AAPL, NVDA)
+        
+    Returns:
+        JSON string with the current price, currency, and timestamp.
+    """
+    logger = get_logger()
+    logger.separator(f"PRICE VALIDATION (Yahoo Finance): {symbol}")
+    
+    try:
+        import yfinance as yf
+        import json
+        from datetime import datetime
+        
+        # specific to yfinance: period="1d" gets the latest data
+        ticker = yf.Ticker(symbol)
+        
+        # fastinfo is often faster/more reliable for current price than history
+        # but history is robust
+        
+        start_time = time.time()
+        
+        # Try fast_info first (it's often better for realtime)
+        try:
+            price = ticker.fast_info['last_price']
+            currency = ticker.fast_info['currency']
+            source = "fast_info"
+        except:
+             # Fallback to history
+            history = ticker.history(period="1d", interval="1m")
+            if not history.empty:
+                price = history['Close'].iloc[-1]
+                currency = "USD" # Assumption, but usually safe for US stocks or available in metadata
+                source = "history_1m"
+            else:
+                # Fallback to daily
+                history = ticker.history(period="1d")
+                if not history.empty:
+                    price = history['Close'].iloc[-1]
+                    currency = "USD"
+                    source = "history_1d"
+                else:
+                    return f"Error: Could not fetch price for {symbol}"
+
+        duration_ms = (time.time() - start_time) * 1000
+        logger.debug(f"Yahoo Finance returned price: {price} via {source}")
+
+        result = {
+            "symbol": symbol.upper(),
+            "price": round(price, 2),
+            "currency": currency,
+            "timestamp": datetime.now().isoformat(),
+            "source": "Yahoo Finance (Free)"
+        }
+        
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        logger.error(f"Price validation error for {symbol}", e)
+        return f"Error fetching price: {str(e)}"
+
+
 def get_tools() -> list:
     """Get all available tools for the advisor agent."""
     logger = get_logger()
@@ -437,7 +510,8 @@ def get_tools() -> list:
         analyze_portfolio_tool,
         analyze_sentiment_tool,
         check_risk_tool,
-        search_filings_tool
+        search_filings_tool,
+        validate_stock_price
     ]
     logger.system(f"Loading {len(tools)} tools: {[t.name for t in tools]}")
     return tools

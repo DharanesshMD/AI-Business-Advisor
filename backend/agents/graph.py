@@ -182,7 +182,59 @@ def create_advisor_graph(location: str = "India"):
                 }
                 formatted_tool_calls.append(formatted_call)
                 logger.debug(f"Tool call queued: {tc.function.name} with args {tc.function.arguments}")
-        else:
+        
+        # Fallback: Check for manual tool calls in text (common with some models)
+        if not formatted_tool_calls:
+            import uuid
+            # Pattern 1: <TOOLCALL>[...]</TOOLCALL>
+            toolcall_match = re.search(r'<TOOLCALL>(.*?)</TOOLCALL>', content, re.DOTALL | re.IGNORECASE)
+            # Pattern 2: <tool>...</tool>
+            tool_match = re.search(r'<tool>(.*?)</tool>', content, re.DOTALL | re.IGNORECASE)
+            
+            raw_tools = None
+            if toolcall_match:
+                raw_tools = toolcall_match.group(1)
+                clean_content = clean_content.replace(toolcall_match.group(0), "")
+            elif tool_match:
+                raw_tools = tool_match.group(1)
+                clean_content = clean_content.replace(tool_match.group(0), "")
+                
+            if raw_tools:
+                try:
+                    # Clean potential markdown code blocks
+                    raw_tools = raw_tools.strip()
+                    if raw_tools.startswith("```json"):
+                        raw_tools = raw_tools[7:]
+                    if raw_tools.startswith("```"):
+                        raw_tools = raw_tools[3:]
+                    if raw_tools.endswith("```"):
+                        raw_tools = raw_tools[:-3]
+                    
+                    parsed_tools = json.loads(raw_tools)
+                    if isinstance(parsed_tools, list):
+                        logger.model_thinking("tool_decision", f"Found {len(parsed_tools)} manual tool call(s) in text")
+                        for tc in parsed_tools:
+                            formatted_call = {
+                                "name": tc.get("name"),
+                                "args": tc.get("arguments", {}),
+                                "id": f"call_{uuid.uuid4().hex[:8]}"
+                            }
+                            formatted_tool_calls.append(formatted_call)
+                            logger.debug(f"Manual tool call queued: {formatted_call['name']}")
+                    elif isinstance(parsed_tools, dict):
+                         # Handle single tool object
+                         formatted_call = {
+                                "name": parsed_tools.get("name"),
+                                "args": parsed_tools.get("arguments", {}),
+                                "id": f"call_{uuid.uuid4().hex[:8]}"
+                         }
+                         formatted_tool_calls.append(formatted_call)
+                         logger.model_thinking("tool_decision", "Found 1 manual tool call in text")
+
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse manual tool call JSON: {e}")
+        
+        if not formatted_tool_calls:
             logger.model_thinking("response_finalized", "No tool calls - Final response ready")
         
         # NVIDIA NIM requires non-empty content, use placeholder when making tool calls

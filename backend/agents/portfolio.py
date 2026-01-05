@@ -61,8 +61,22 @@ class PortfolioAgent:
             
         # Fetch from API
         if not self.finnhub_client:
+            # Try YFinance as fallback (Free, Real-time)
+            df = await self._fetch_yfinance_data(symbol, days)
+            if not df.empty:
+                return df
             return self._generate_mock_data(symbol, days)
             
+        # Try to get current price first (usually works on free tier)
+        current_price = None
+        try:
+            quote = await asyncio.to_thread(self.finnhub_client.quote, symbol)
+            if quote and quote.get('c'):
+                current_price = quote.get('c')
+                logger.debug(f"Retrieved real price for {symbol}: {current_price}")
+        except Exception as qe:
+            logger.warning(f"Quote fetch failed for {symbol}: {qe}")
+
         try:
             end_time = int(datetime.now().timestamp())
             start_time = int((datetime.now() - timedelta(days=days * 1.5)).timestamp()) # Buffer for weekends
@@ -74,8 +88,15 @@ class PortfolioAgent:
             )
             
             if res['s'] != 'ok':
-                logger.error(f"Finnhub error for {symbol}: {res.get('s')}")
-                return self._generate_mock_data(symbol, days)
+                logger.error(f"Finnhub candle error for {symbol}: {res.get('s')}")
+                
+                # FALLBACK TO YFINANCE BEFORE MOCK
+                df = await self._fetch_yfinance_data(symbol, days)
+                if not df.empty:
+                    return df
+                    
+                # Fallback to mock data but use the real current_price if we have it
+                return self._generate_mock_data(symbol, days, start_price=current_price)
                 
             df = pd.DataFrame({
                 'date': pd.to_datetime(res['t'], unit='s'),
@@ -101,19 +122,85 @@ class PortfolioAgent:
             
         except Exception as e:
             logger.error(f"Error fetching data for {symbol}: {e}")
-            return self._generate_mock_data(symbol, days)
+            
+            # FALLBACK TO YFINANCE BEFORE MOCK
+            df = await self._fetch_yfinance_data(symbol, days)
+            if not df.empty:
+                return df
+                
+            return self._generate_mock_data(symbol, days, start_price=current_price)
 
-    def _generate_mock_data(self, symbol: str, days: int) -> pd.DataFrame:
+    async def _fetch_yfinance_data(self, symbol: str, days: int) -> pd.DataFrame:
+        """Fetch historical data from Yahoo Finance."""
+        try:
+            import yfinance as yf
+            logger.info(f"Fetching YFinance data for {symbol}")
+            
+            def _fetch():
+                # Download data with a buffer to ensure we get enough trading days
+                # 252 trading days is approx 1 year, so we fetch 1.5y to be safe or just use 'period'
+                # yf.download is flexible.
+                
+                # Logic: if days is small (30), use '1mo' or '3mo'. If 252, use '1y' or '2y'.
+                period = "2y" if days > 200 else "1y" 
+                
+                ticker = yf.Ticker(symbol)
+                # history() returns a DF with Datetime Index
+                hist = ticker.history(period=period)
+                return hist
+
+            hist = await asyncio.to_thread(_fetch)
+            
+            if hist.empty:
+                return pd.DataFrame()
+                
+            # Clean up DataFrame to match our internal format
+            # YF columns: Open, High, Low, Close, Volume, Dividends, Stock Splits
+            # We need lowercase: open, high, low, close, volume (and index as date)
+            
+            hist.reset_index(inplace=True)
+            # Ensure Date column is standard
+            # YF might return 'Date' or 'Datetime' depending on version
+            date_col = 'Date' if 'Date' in hist.columns else hist.columns[0]
+            
+            df = pd.DataFrame({
+                'date': pd.to_datetime(hist[date_col]),
+                'open': hist['Open'],
+                'high': hist['High'],
+                'low': hist['Low'],
+                'close': hist['Close'],
+                'volume': hist['Volume']
+            })
+            df.set_index('date', inplace=True)
+            
+            # Filter to requested number of days (most recent)
+            if len(df) > days:
+                df = df.iloc[-days:]
+                
+            # Log current price for sanity check
+            if not df.empty:
+                logger.debug(f"YF Current Price for {symbol}: {df['close'].iloc[-1]}")
+                
+            return df
+            
+        except Exception as e:
+            logger.error(f"YFinance fetch error for {symbol}: {e}")
+            return pd.DataFrame()
+
+    def _generate_mock_data(self, symbol: str, days: int, start_price: float = None) -> pd.DataFrame:
         """Generate legitimate-looking mock data for testing/fallback."""
         logger.info(f"Generating mock data for {symbol}")
-        dates = pd.date_range(end=datetime.now(), periods=days, freq='B')
+        # Normalize date to ensure alignment across different assets
+        end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        dates = pd.date_range(end=end_date, periods=days, freq='B')
         
         # Deterministic random seed based on symbol for consistency
         seed = sum(ord(c) for c in symbol)
         np.random.seed(seed)
         
         # Random walk
-        start_price = 100 + (seed % 100)
+        if start_price is None:
+            start_price = 100 + (seed % 100)
         returns = np.random.normal(0.001, 0.02, days) # Mean 0.1%, Std 2%
         price_path = start_price * (1 + returns).cumprod()
         
