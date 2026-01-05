@@ -1235,3 +1235,163 @@ body {
         font-size: 11px;
     }
 }
+
+/* ==========================================================================
+   Explainable AI (XAI) - Operations X-Ray View
+   ========================================================================== */
+.xai-container {
+    background: rgba(10, 10, 15, 0.4);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    margin-top: var(--space-md);
+    overflow: hidden;
+    display: none;
+    /* Hidden by default */
+}
+
+/* Show when active */
+body.xai-active .xai-container {
+    display: block;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.xai-header {
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.1), transparent);
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-accent-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.xai-content {
+    padding: var(--space-md);
+}
+
+/* Regulatory/Ethical Status Badges */
+.compliance-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+
+/* Only show badges if XAI is active, or maybe always? 
+   Let's keep badges always visible but maybe more subtle if not active. 
+   Actually, hiding the whole container is better for "X-Ray" effect. 
+*/
+
+.compliance-badge.green {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--color-success);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.compliance-badge.yellow {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--color-warning);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.compliance-badge.red {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-error);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Counterfactual / Recourse Highlighting */
+.recourse-box {
+    border-left: 3px solid var(--color-accent-secondary);
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.05), transparent);
+    padding: var(--space-md);
+    margin: var(--space-sm) 0;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    display: none;
+}
+
+body.xai-active .recourse-box {
+    display: block;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.recourse-title {
+    font-size: var(--font-size-xs);
+    color: var(--color-accent-secondary);
+    font-weight: 600;
+    margin-bottom: var(--space-xs);
+    text-transform: uppercase;
+}
+
+/* Toggle Switch for X-RAY View */
+.xai-control {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-md);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-full);
+}
+
+.xai-control .label-text {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    color: var(--color-accent-secondary);
+    letter-spacing: 0.05em;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 32px;
+    height: 18px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--color-bg-tertiary);
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked+.slider {
+    background-color: var(--color-accent-secondary);
+}
+
+input:focus+.slider {
+    box-shadow: 0 0 1px var(--color-accent-secondary);
+}
+
+input:checked+.slider:before {
+    transform: translateX(14px);
+}

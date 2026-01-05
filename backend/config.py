@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     # API Keys
     NVIDIA_API_KEY: str = ""
     TAVILY_API_KEY: str = ""
+    SONAR_API_KEY: str = ""
+    FINNHUB_API_KEY: str = ""
     
     # Model Configuration
     MODEL_NAME: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
@@ -36,6 +38,15 @@ class Settings(BaseSettings):
     
     # CORS Settings (for frontend)
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5500", "http://127.0.0.1:5500"]
+
+    # Database & Cache
+    POSTGRES_URI: str = "postgresql://advisor:advisor_password@localhost:5432/ai_advisor"
+    REDIS_URI: str = "redis://localhost:6379/0"
+    
+    # Graph Database
+    NEO4J_URI: str = "bolt://localhost:7687"
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: str = "advisor_password"
     
     class Config:
         env_file = ".env"

@@ -59,6 +59,24 @@
                         </select>
                     </div>
 
+                    <div class="location-selector" style="margin-right: 12px;">
+                        <label for="searchProvider">
+                            <span style="font-size: 14px;">🔍</span>
+                        </label>
+                        <select id="searchProvider">
+                            <option value="tavily">Tavily</option>
+                            <option value="perplexity">Perplexity</option>
+                        </select>
+                    </div>
+
+                    <div class="xai-control">
+                        <label class="switch">
+                            <input type="checkbox" id="xaiToggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                        <span class="label-text">X-RAY</span>
+                    </div>
+
                     <div class="connection-status" id="connectionStatus">
                         <span class="status-dot"></span>
                         <span class="status-text">Connecting...</span>
@@ -85,17 +103,23 @@
                             <span class="message-badge">AI Advisor</span>
                         </div>
                         <div class="message-text">
-                            <p>👋 Welcome! I'm <strong>ARIA</strong>, your AI Business Advisor.</p>
-                            <p>I can help you with:</p>
+                            <p>👋 Welcome! I'm <strong>ARIA</strong>, your ARIA Quantitative Finance & AI Business
+                                Advisor.</p>
+                            <p>I can assist you with comprehensive business and financial intelligence:</p>
                             <ul>
-                                <li>🏢 Business strategy and planning</li>
-                                <li>📋 Government regulations and compliance</li>
-                                <li>💰 Financial planning and funding strategies</li>
-                                <li>🌐 Market research and competitor analysis</li>
+                                <li>📊 <strong>Quantitative Finance:</strong> Portfolio risk (VaR, CVaR), Sharpe ratios,
+                                    and Monte Carlo projections.</li>
+                                <li>📈 <strong>Market Intelligence:</strong> Real-time sentiment analysis, news
+                                    aggregation, and industry trends.</li>
+                                <li>🔍 <strong>Deal Intelligence:</strong> SEC filing analysis (10-K/10-Q) and automated
+                                    risk factor extraction.</li>
+                                <li>📋 <strong>Strategy & Compliance:</strong> Business planning, competitor analysis,
+                                    and location-aware regulations.</li>
                             </ul>
-                            <p>I'll <strong>always search the web</strong> for real-time information and provide advice
-                                backed by current data and sources.</p>
-                            <p class="hint">Try asking: <em>"How do I register a tech startup in Bangalore?"</em></p>
+                            <p>I search the <strong>web, market data, and official filings</strong> in real-time to
+                                provide data-driven advice backed by verifiable sources.</p>
+                            <p class="hint">Try: <em>"How do I register a startup in Bangalore?"</em> or <em>"Analyze my
+                                    portfolio: 10 shares of AAPL and 5 shares of NVDA"</em></p>
                         </div>
                     </div>
                 </div>
@@ -166,7 +190,7 @@
         </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2"></script>
 </body>
 
 </html>
