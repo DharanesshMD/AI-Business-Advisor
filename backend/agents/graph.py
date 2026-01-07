@@ -289,29 +289,75 @@ def create_advisor_graph(location: str = "India"):
         return {"messages": tool_outputs}
 
     def should_continue(state: AgentState) -> str:
-        """Determine if we should continue to tools or end."""
+        """Determine if we should continue to tools, validate, or end."""
         last_message = state["messages"][-1]
+        
+        # If model wants tools, go to tools
         if hasattr(last_message, "tool_calls") and last_message.tool_calls:
             logger.debug(f"Routing decision: -> tools ({len(last_message.tool_calls)} pending calls)")
             return "tools"
-        logger.debug("Routing decision: -> END (no more tool calls)")
+        
+        # If this was a tool result, go back to agent to synthesize
+        if isinstance(last_message, ToolMessage):
+            return "agent"
+            
+        # If this was an AI final message, validate it
+        if isinstance(last_message, AIMessage) and last_message.content:
+            logger.debug("Routing decision: -> validate")
+            return "validate"
+            
+        return END
+
+    def validate_node(state: AgentState) -> dict:
+        """Validate the AI's response for data accuracy."""
+        from backend.agents.validator import get_validator
+        
+        last_message = state["messages"][-1]
+        # Only validate AIMessages with content
+        if not isinstance(last_message, AIMessage) or not last_message.content:
+            return {"messages": []}
+            
+        validator = get_validator()
+        is_valid, error_msg = validator.validate(last_message.content, state["messages"])
+        
+        if not is_valid:
+            # Inject a correction request as a HumanMessage (invisible to user, visible to model)
+            logger.graph_step("validator", "loop", "Requesting correction from model")
+            return {"messages": [HumanMessage(content=error_msg)]}
+        
+        return {"messages": []}
+
+    def check_validation(state: AgentState) -> str:
+        """Check if validation passed or we need correction."""
+        last_message = state["messages"][-1]
+        if isinstance(last_message, HumanMessage) and "DATA INCONSISTENCY DETECTED" in last_message.content:
+            return "agent"
         return END
 
     workflow = StateGraph(AgentState)
     workflow.add_node("agent", call_model)
     workflow.add_node("tools", execute_tools)
+    workflow.add_node("validate", validate_node)
+    
     workflow.set_entry_point("agent")
     
     workflow.add_conditional_edges(
         "agent",
         should_continue,
-        {"tools": "tools", END: END}
+        {"tools": "tools", "validate": "validate", END: END}
     )
     workflow.add_edge("tools", "agent")
     
-    logger.system("LangGraph workflow compiled successfully")
+    workflow.add_conditional_edges(
+        "validate",
+        check_validation,
+        {"agent": "agent", END: END}
+    )
+    
+    logger.system("LangGraph workflow compiled with Sentinel Validation")
     
     return workflow.compile()
+
 
 
 async def stream_advisor_response(graph, messages: list, location: str = "India"):

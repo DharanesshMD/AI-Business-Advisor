@@ -552,6 +552,103 @@ def query_knowledge_graph(symbol: str) -> str:
         return f"Error querying Knowledge Graph: {str(e)}"
 
 
+@tool
+def run_stress_test(scenario: str, symbols: str) -> str:
+    """
+    Run a macro-economic stress test on a portfolio or list of stocks.
+    
+    Simulates how different shock scenarios (Fed rate hikes, oil spikes, 
+    recessions, tech selloffs) would impact the given holdings.
+    
+    Available scenarios:
+    - fed_rate_hike_50bps: Fed raises rates 50bps unexpectedly
+    - fed_rate_cut_25bps: Fed cuts rates 25bps
+    - oil_spike_20pct: Oil prices surge 20%
+    - recession_severe: Deep economic contraction
+    - tech_selloff: Technology sector correction 15-20%
+    - china_slowdown: China GDP growth falls to 3%
+    - inflation_spike: CPI surges to 8%+
+    
+    Use this tool when users ask about:
+    - "What if Fed raises rates?"
+    - "How would a recession affect my portfolio?"
+    - "Stress test my holdings"
+    - "What's my downside risk if oil spikes?"
+    
+    Args:
+        scenario: Scenario ID (e.g., "fed_rate_hike_50bps", "recession_severe")
+        symbols: Comma-separated stock symbols (e.g., "AAPL,NVDA,MSFT")
+        
+    Returns:
+        JSON with expected impacts per holding, portfolio-level P&L, and recommendations.
+    """
+    logger = get_logger()
+    logger.separator(f"STRESS TEST: {scenario} on {symbols}")
+    
+    try:
+        import asyncio
+        import json
+        from backend.agents.stress_test import get_stress_test_agent
+        
+        agent = get_stress_test_agent()
+        
+        # Parse symbols
+        symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+        
+        if not symbol_list:
+            return json.dumps({"error": "No valid symbols provided"})
+        
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(
+                agent.run_stress_test(scenario, symbols=symbol_list), loop
+            )
+            result = future.result()
+        else:
+            result = loop.run_until_complete(
+                agent.run_stress_test(scenario, symbols=symbol_list)
+            )
+        
+        return json.dumps(result, indent=2)
+        
+    except Exception as e:
+        logger.error(f"Stress test error: {scenario}", e)
+        return f"Error running stress test: {str(e)}"
+
+
+@tool
+def list_stress_scenarios() -> str:
+    """
+    List all available macro-economic stress test scenarios.
+    
+    Use this when the user asks what stress tests are available or wants to 
+    see the options before running a specific scenario.
+    
+    Returns:
+        JSON list of available scenarios with names and descriptions.
+    """
+    logger = get_logger()
+    logger.separator("LIST STRESS SCENARIOS")
+    
+    try:
+        import json
+        from backend.agents.stress_test import get_stress_test_agent
+        
+        agent = get_stress_test_agent()
+        scenarios = agent.get_available_scenarios()
+        
+        return json.dumps(scenarios, indent=2)
+        
+    except Exception as e:
+        logger.error("Error listing stress scenarios", e)
+        return f"Error: {str(e)}"
+
+
 def get_tools() -> list:
     """Get all available tools for the advisor agent."""
     logger = get_logger()
@@ -563,8 +660,11 @@ def get_tools() -> list:
         check_risk_tool,
         search_filings_tool,
         validate_stock_price,
-        query_knowledge_graph
+        query_knowledge_graph,
+        run_stress_test,
+        list_stress_scenarios
     ]
     logger.system(f"Loading {len(tools)} tools: {[t.name for t in tools]}")
     return tools
+
 
