@@ -478,6 +478,45 @@ body {
     border-bottom-color: var(--color-accent-primary);
 }
 
+/* Markdown Tables */
+.message-text table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: var(--space-md) 0;
+    font-size: var(--font-size-sm);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+}
+
+.message-text th {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--color-text-primary);
+    font-weight: 600;
+    text-align: left;
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 2px solid var(--glass-border);
+}
+
+.message-text td {
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--glass-border);
+    color: var(--color-text-secondary);
+}
+
+.message-text tr:last-child td {
+    border-bottom: none;
+}
+
+.message-text tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.message-text tr:hover {
+    background: rgba(99, 102, 241, 0.05);
+}
+
 /* Tool Usage Badge in Chat */
 .tool-usage {
     margin: var(--space-sm) 0 var(--space-sm) 56px;

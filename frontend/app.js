@@ -696,50 +696,117 @@ function renderMarkdown(text) {
 
     let html = escapeHtml(text);
 
-    // Code blocks (must come first)
-    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>');
-    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    // 1. Code blocks - Keep these first
+    const codeBlocks = [];
+    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+        const id = `__CODE_BLOCK_${codeBlocks.length}__`;
+        codeBlocks.push(`<pre><code class="language-${lang || ''}">${code}</code></pre>`);
+        return id;
+    });
 
-    // Inline code
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // 2. Robust Table Parsing
+    const lines = html.split('\n');
+    let resultLines = [];
+    let currentTable = [];
 
-    // Headers
+    const isTableLine = (line) => {
+        const trimmed = line.trim();
+        return trimmed.startsWith('|') && trimmed.endsWith('|');
+    };
+
+    const isTableSeparator = (line) => {
+        const trimmed = line.trim();
+        return trimmed.startsWith('|') && trimmed.endsWith('|') && /^[| \-: \t]+$/.test(trimmed) && trimmed.includes('-');
+    };
+
+    const parseTable = (rows) => {
+        if (rows.length < 2) return rows.join('\n');
+
+        const getCells = (row) => {
+            let cells = row.trim().split('|');
+            // Remove first and last empty cells
+            if (cells[0] === '') cells.shift();
+            if (cells.length > 0 && cells[cells.length - 1] === '') cells.pop();
+            return cells;
+        };
+
+        const headers = getCells(rows[0]).map(cell => `<th>${cell.trim()}</th>`).join('');
+
+        // Skip separator row (rows[1])
+        const bodyRows = rows.slice(2).map(row => {
+            const cells = getCells(row).map(cell => `<td>${cell.trim()}</td>`).join('');
+            return `<tr>${cells}</tr>`;
+        }).join('');
+
+        return `<div class="table-container"><table><thead><tr>${headers}</tr></thead><tbody>${bodyRows}</tbody></table></div>`;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (isTableLine(line)) {
+            currentTable.push(line);
+        } else {
+            if (currentTable.length >= 2 && currentTable.some(l => isTableSeparator(l))) {
+                resultLines.push(parseTable(currentTable));
+            } else {
+                resultLines = resultLines.concat(currentTable);
+            }
+            currentTable = [];
+            resultLines.push(line);
+        }
+    }
+    if (currentTable.length >= 2 && currentTable.some(l => isTableSeparator(l))) {
+        resultLines.push(parseTable(currentTable));
+    } else {
+        resultLines = resultLines.concat(currentTable);
+    }
+    html = resultLines.join('\n');
+
+    // 3. Block Elements
     html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
     html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
     html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
     html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    html = html.replace(/^---$/gm, '<hr>');
+    html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
 
-    // Bold and italic
+    // 4. Inline Elements
     html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
     html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
     html = html.replace(/_(.+?)_/g, '<em>$1</em>');
-
-    // Links
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
-    // Horizontal rule
-    html = html.replace(/^---$/gm, '<hr>');
-
-    // Blockquotes
-    html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
-
-    // Unordered lists
+    // 5. Lists
     html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
     html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-
-    // Ordered lists  
     html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
 
-    // Line breaks
+    // 6. Paragraphs and Line Breaks
     html = html.replace(/\n\n/g, '</p><p>');
-    html = html.replace(/\n/g, '<br>');
+    const processedLines = html.split('\n');
+    html = processedLines.map(line => {
+        if (line.match(/^<(ul|ol|li|table|thead|tbody|tr|th|td|h1|h2|h3|h4|hr|blockquote|pre|p|div|section)/) ||
+            line.match(/<\/(ul|ol|li|table|thead|tbody|tr|th|td|h1|h2|h3|h4|hr|blockquote|pre|p|div|section)>$/) ||
+            line.includes('class="table-container"')) {
+            return line;
+        }
+        if (line.trim() === '') return line;
+        return line + '<br>';
+    }).join('\n');
 
-    // Wrap in paragraph if not already wrapped
-    if (!html.startsWith('<')) {
+    if (!html.trim().startsWith('<')) {
         html = '<p>' + html + '</p>';
     }
+
+    // 7. Restore Code Blocks
+    codeBlocks.forEach((block, i) => {
+        html = html.replace(`__CODE_BLOCK_${i}__`, block);
+    });
+
+    html = html.replace(/<\/(ul|ol|table|h1|h2|h3|h4|hr|blockquote|pre|p|div)><br>/g, '</$1>');
 
     return applyXAIParsing(html);
 }

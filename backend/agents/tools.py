@@ -501,6 +501,57 @@ def validate_stock_price(symbol: str) -> str:
         return f"Error fetching price: {str(e)}"
 
 
+@tool
+def query_knowledge_graph(symbol: str) -> str:
+    """
+    Query the Knowledge Graph to discover hidden risk correlations,
+    supplier dependencies, and macro sensitivities for a company.
+    
+    Use this tool when you want to:
+    - Find risks that aren't obvious from direct analysis
+    - Discover how macro factors (interest rates, oil prices) affect a company
+    - Identify supply chain risks from dependent suppliers
+    - Get a holistic view of interconnected risks
+    
+    Note: Data must first be populated using the search_filings_tool.
+    
+    Args:
+        symbol: Stock ticker symbol (e.g., AAPL, NVDA)
+        
+    Returns:
+        JSON string with discovered relationships, risks, and insights.
+    """
+    logger = get_logger()
+    logger.separator(f"KNOWLEDGE GRAPH QUERY: {symbol}")
+    
+    try:
+        import asyncio
+        import json
+        from backend.agents.knowledge_graph import get_knowledge_graph_agent
+        
+        agent = get_knowledge_graph_agent()
+        
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(
+                agent.discover_related_risks(symbol), loop
+            )
+            result = future.result()
+        else:
+            result = loop.run_until_complete(agent.discover_related_risks(symbol))
+        
+        return json.dumps(result, indent=2)
+        
+    except Exception as e:
+        logger.error(f"Knowledge Graph query error for {symbol}", e)
+        return f"Error querying Knowledge Graph: {str(e)}"
+
+
 def get_tools() -> list:
     """Get all available tools for the advisor agent."""
     logger = get_logger()
@@ -511,7 +562,8 @@ def get_tools() -> list:
         analyze_sentiment_tool,
         check_risk_tool,
         search_filings_tool,
-        validate_stock_price
+        validate_stock_price,
+        query_knowledge_graph
     ]
     logger.system(f"Loading {len(tools)} tools: {[t.name for t in tools]}")
     return tools
