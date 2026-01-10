@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 from backend.config import get_settings
 from backend.agents.graph import create_advisor_graph
@@ -184,11 +184,46 @@ class PortfolioRequest(BaseModel):
     days: int = 30
 
 
+class ValidateRequest(BaseModel):
+    """Request to validate a specific AI response."""
+    message_content: str
+    session_id: str
+
+
 # REST Endpoints
 @app.get("/", response_class=FileResponse)
 async def serve_frontend():
     """Serve the frontend HTML."""
     return FileResponse("frontend/index.html")
+
+
+@app.post("/api/validate")
+async def validate_response(request: ValidateRequest):
+    """
+    Manually validate an AI response for consistency.
+    """
+    from backend.agents.validator import get_validator
+    
+    logger = get_logger()
+    logger.separator(f"MANUAL VALIDATION REQUEST")
+    
+    # Get conversation history for this session to find ground truth (tool outputs)
+    history = conversation_histories.get(request.session_id, [])
+    
+    if not history:
+        logger.debug(f"No history found for session {request.session_id}")
+        return {"is_valid": True, "message": "No history available for validation."}
+    
+    validator = get_validator()
+    logger.debug(f"Validating message (len={len(request.message_content)}): {request.message_content[:200]}...")
+    report = validator.validate_structured(request.message_content, history)
+    
+    if report["is_valid"]:
+        logger.system("Manual validation: PASSED")
+    else:
+        logger.tool_call_error("validator", "Manual validation: FAILED")
+        
+    return report
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -316,7 +351,8 @@ async def websocket_chat(websocket: WebSocket):
         # Send welcome message
         welcome_msg = {
             "type": "system",
-            "content": "Connected to ARIA - AI Business Advisor. How can I help you today?"
+            "content": "Connected to ARIA - AI Business Advisor. How can I help you today?",
+            "session_id": session_id
         }
         await websocket.send_json(welcome_msg)
         logger.websocket_event("system", "out", welcome_msg)
@@ -382,13 +418,14 @@ async def websocket_chat(websocket: WebSocket):
                     tool_used = False
                     tool_names_used = []
                     tool_queries = []
+                    tool_messages = []  # Capture ToolMessage objects for validator
                     
                     # Create a queue for async communication
                     event_queue = asyncio.Queue()
                     
                     def run_graph():
                         """Run the graph and collect events."""
-                        nonlocal full_response, tool_used, tool_names_used, tool_queries
+                        nonlocal full_response, tool_used, tool_names_used, tool_queries, tool_messages
                         logger.model_thinking("execution", "Starting graph stream execution")
                         step_count = 0
                         
@@ -400,8 +437,12 @@ async def websocket_chat(websocket: WebSocket):
                                 # Collect events for the UI
                                 if node_name == "tools":
                                     tool_used = True
-                                    # Extract tool results
+                                    # Extract tool results and store ToolMessages for validator
                                     for msg in output.get("messages", []):
+                                        if isinstance(msg, ToolMessage):
+                                            # Capture ToolMessage for validation context
+                                            tool_messages.append(msg)
+                                            logger.debug(f"Captured ToolMessage: {msg.content[:100] if msg.content else 'empty'}...")
                                         if hasattr(msg, 'content'):
                                             # Log tool result summary
                                             result_preview = str(msg.content)[:100]
@@ -553,11 +594,14 @@ async def websocket_chat(websocket: WebSocket):
                 total_time = (time.time() - start_time) * 1000
                 logger.debug(f"Total request handling time: {total_time:.0f}ms")
                 
-                # Update history
+                # Update history - include ToolMessages for validation
                 if full_response:
+                    # Add tool messages first (they came before the AI response)
+                    for tool_msg in tool_messages:
+                        history.append(tool_msg)
                     history.append(AIMessage(content=full_response))
-                    conversation_histories[session_id] = history[-20:]
-                    logger.debug(f"History updated, now {len(conversation_histories[session_id])} messages")
+                    conversation_histories[session_id] = history[-30:]  # Increased to accommodate tool messages
+                    logger.debug(f"History updated with {len(tool_messages)} tool messages, now {len(conversation_histories[session_id])} total messages")
                 
                 logger.separator(f"WEBSOCKET CHAT COMPLETE #{request_id}")
             

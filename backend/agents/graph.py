@@ -301,9 +301,9 @@ def create_advisor_graph(location: str = "India"):
         if isinstance(last_message, ToolMessage):
             return "agent"
             
-        # If this was an AI final message, validate it
+        # If this was an AI final message, route to validation
         if isinstance(last_message, AIMessage) and last_message.content:
-            logger.debug("Routing decision: -> validate")
+            logger.debug("Routing decision: -> validate (automatic data check)")
             return "validate"
             
         return END

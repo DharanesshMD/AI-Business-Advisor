@@ -39,6 +39,8 @@ const state = {
     thinkingLogs: [],
     inlineThinkingElement: null,  // Reference to inline thinking section in chat
     inlineThinkingContent: null,  // Reference to content area of inline thinking
+    sessionId: null,              // Session ID from server
+    currentValidationBtn: null,   // Reference to the validation button of the current message
 };
 
 // =============================================================================
@@ -120,7 +122,11 @@ function handleSocketMessage(event) {
 
         switch (data.type) {
             case 'system':
-                // System messages are handled by the welcome message
+                // Capture session ID if present
+                if (data.session_id) {
+                    state.sessionId = data.session_id;
+                    console.log('Session ID:', state.sessionId);
+                }
                 break;
 
             case 'typing':
@@ -355,15 +361,28 @@ function addMessage(content, type = 'assistant') {
                 <span class="message-badge">${isUser ? 'User' : 'AI Advisor'}</span>
             </div>
             <div class="message-text">${isUser ? escapeHtml(content) : ''}</div>
+            ${!isUser ? `
+                <div class="validation-container">
+                    <button class="validate-btn" style="display: none;" data-content="">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <path d="M9 11l3 3L22 4" />
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                        </svg>
+                        Validate Response
+                    </button>
+                    <div class="validation-result"></div>
+                </div>
+            ` : ''}
         </div>
     `;
 
     elements.chatMessages.appendChild(messageDiv);
     scrollToBottom();
 
-    // Store reference to the message text element if it's an assistant message
+    // Store references to the message elements if it's an assistant message
     if (!isUser) {
         state.currentMessageElement = messageDiv.querySelector('.message-text');
+        state.currentValidationBtn = messageDiv.querySelector('.validate-btn');
     }
 
     return messageDiv;
@@ -485,6 +504,146 @@ function appendActualContent(token) {
     scrollToBottom();
 }
 
+/**
+ * Validate a specific assistant message
+ * @param {HTMLElement} button - The validate button that was clicked
+ * @param {string} content - The content to validate
+ */
+async function validateMessage(button, content) {
+    if (!state.sessionId) {
+        console.error('No session ID available for validation');
+        return;
+    }
+
+    const messageDiv = button.closest('.message');
+    const resultContainer = messageDiv.querySelector('.validation-result');
+
+    // Show loading state
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-small"></span> Verifying Claims...';
+    resultContainer.innerHTML = `
+        <div class="validation-loading">
+            <div class="loader-bar"></div>
+            <p>Cross-referencing stated figures with source tool data...</p>
+        </div>
+    `;
+    resultContainer.className = 'validation-result visible loading';
+
+    try {
+        const response = await fetch('/api/validate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message_content: content,
+                session_id: state.sessionId
+            }),
+        });
+
+        const data = await response.json();
+
+        // Remove loading state
+        button.style.display = 'none';
+        resultContainer.classList.remove('loading');
+
+        if (data.total_claims === 0) {
+            // Use the detailed summary from the backend
+            const summaryHtml = renderMarkdown(data.summary || 'No specific data points (prices/metrics) were found in this message to validate.');
+            resultContainer.innerHTML = `
+                <div class="validation-info">
+                    <div class="val-summary-detailed">${summaryHtml}</div>
+                </div>
+            `;
+            return;
+        }
+
+        // Build status summary
+        const statusClass = data.is_valid ? 'success' : 'error';
+        const statusIcon = data.is_valid ? '✅' : '⚠️';
+
+        // Build the metrics cards
+        let metricsHtml = `
+            <div class="validation-metrics">
+                <div class="metric-card">
+                    <span class="metric-label">Total Claims</span>
+                    <span class="metric-value">${data.total_claims}</span>
+                </div>
+                <div class="metric-card ${data.verified_claims > 0 ? 'passed' : ''}">
+                    <span class="metric-label">Verified</span>
+                    <span class="metric-value">${data.verified_claims}</span>
+                </div>
+                ${data.failed_claims > 0 ? `
+                <div class="metric-card failed">
+                    <span class="metric-label">Inconsistencies</span>
+                    <span class="metric-value">${data.failed_claims}</span>
+                </div>
+                ` : ''}
+            </div>
+        `;
+
+        // Build the comparison table
+        let tableRows = data.checks.map(check => {
+            const statusLabel = check.status.toUpperCase();
+            const statusClass = `status-${check.status}`;
+            const diffHtml = check.status === 'failed' ? `<span class="diff-tag">(${check.diff_pct}% dev)</span>` : '';
+            const unit = check.unit || '$';
+
+            return `
+                <tr>
+                    <td><strong>${check.key || 'N/A'}</strong></td>
+                    <td>${unit}${check.claimed != null ? check.claimed.toLocaleString() : 'N/A'}</td>
+                    <td>${check.actual != null ? unit + check.actual.toLocaleString() : '<span class="muted">N/A</span>'}</td>
+                    <td>
+                        <span class="val-status-tag ${statusClass}">${statusLabel}</span>
+                        ${diffHtml}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        let tableHtml = `
+            <div class="val-table-wrapper">
+                <table class="val-comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>AI Stated</th>
+                            <th>Reference</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        // Render summary as markdown for proper formatting
+        const summaryHtml = renderMarkdown(data.summary || '');
+
+        resultContainer.innerHTML = `
+            <div class="validation-report ${statusClass}">
+                <div class="val-header">
+                    <span class="val-icon">${statusIcon}</span>
+                    <span class="val-title">${data.is_valid ? 'Integrity Check Passed' : 'Data Inconsistency Detected'}</span>
+                </div>
+                <div class="val-summary-detailed">${summaryHtml}</div>
+                ${metricsHtml}
+                ${tableHtml}
+            </div>
+        `;
+        resultContainer.classList.add(statusClass);
+
+    } catch (error) {
+        console.error('Validation error:', error);
+        button.disabled = false;
+        button.textContent = 'Retry Validation';
+        resultContainer.innerHTML = '<div class="validation-error">Error connecting to validation service. Please check your connection.</div>';
+    }
+}
+
 function finishMessage() {
     // Flush any remaining content in the stream buffer
     if (state.streamBuffer.length > 0) {
@@ -503,7 +662,7 @@ function finishMessage() {
     // Don't hide thinking panel - let it persist for the user to review
     hideToolToast();
     state.currentMessageElement = null;
-    state.currentMessage = '';
+    // state.currentMessage = ''; // Removed to allow capture below
     state.isInThinkingMode = false;
     state.thinkingBuffer = '';
     state.streamBuffer = '';
@@ -511,6 +670,20 @@ function finishMessage() {
     state.inlineThinkingElement = null;
     state.inlineThinkingContent = null;
     elements.modelStatus.textContent = 'Ready';
+
+    // Show validation button for the finished message
+    if (state.currentValidationBtn) {
+        state.currentValidationBtn.style.display = 'flex';
+        const contentSnapshot = state.currentMessage;
+
+        // Use a clean click handler
+        const btn = state.currentValidationBtn;
+        btn.onclick = () => validateMessage(btn, contentSnapshot);
+    }
+
+    state.currentMessageElement = null;
+    state.currentValidationBtn = null;
+    state.currentMessage = '';
 }
 
 function showError(message) {
@@ -543,6 +716,7 @@ function showError(message) {
     scrollToBottom();
 
     state.currentMessageElement = null;
+    state.currentValidationBtn = null;
     elements.modelStatus.textContent = 'Error';
 }
 

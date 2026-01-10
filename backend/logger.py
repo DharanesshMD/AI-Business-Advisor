@@ -70,7 +70,15 @@ class DetailedFormatter(logging.Formatter):
         color = category_colors.get(category, color)
         
         # Format the message
-        formatted = f"{color}[{timestamp}] [{category:10}] {record.getMessage()}{Colors.RESET}"
+        try:
+            formatted = f"{color}[{timestamp}] [{category:10}] {record.getMessage()}{Colors.RESET}"
+            # Verify it can be printed to stdout
+            if sys.stdout and sys.stdout.encoding:
+                formatted.encode(sys.stdout.encoding, errors='strict')
+        except (UnicodeEncodeError, AttributeError):
+            # Fallback: remove non-ASCII characters for restricted terminals
+            clean_msg = "".join(c for c in record.getMessage() if ord(c) < 128)
+            formatted = f"{color}[{timestamp}] [{category:10}] {clean_msg}{Colors.RESET}"
         
         return formatted
 
