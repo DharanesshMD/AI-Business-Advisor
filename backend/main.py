@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
 
 from backend.config import get_settings
 from backend.agents.graph import create_advisor_graph
@@ -428,6 +428,7 @@ async def websocket_chat(websocket: WebSocket):
                         nonlocal full_response, tool_used, tool_names_used, tool_queries, tool_messages
                         logger.model_thinking("execution", "Starting graph stream execution")
                         step_count = 0
+                        fact_check_report = None
                         
                         for step in graph.stream({"messages": history, "location": location}):
                             step_count += 1
@@ -469,9 +470,21 @@ async def websocket_chat(websocket: WebSocket):
                                                 logger.model_thinking("response_generation", f"Content generated: {len(msg.content)} chars")
                                                 full_response = msg.content
                                                 thinking_logs.add("response_generation", f"Generated response ({len(msg.content)} characters)")
+                                
+                                elif node_name == "fact_check":
+                                    # Capture fact-check report
+                                    for msg in output.get("messages", []):
+                                        if isinstance(msg, SystemMessage):
+                                            try:
+                                                fact_check_data = json.loads(msg.content)
+                                                if fact_check_data.get("type") == "fact_check":
+                                                    fact_check_report = fact_check_data.get("report")
+                                                    logger.debug(f"Captured fact-check report: {fact_check_report.get('summary', '')[:100]}...")
+                                            except json.JSONDecodeError:
+                                                pass
                         
                         logger.debug(f"Graph execution completed in {step_count} steps")
-                        return full_response
+                        return full_response, fact_check_report
                     
                     # Run the graph in executor while streaming thinking logs
                     loop = asyncio.get_event_loop()
@@ -503,8 +516,8 @@ async def websocket_chat(websocket: WebSocket):
                         last_log_index += len(new_logs)
                         await asyncio.sleep(0.1)
                     
-                    # Get the result
-                    result = await graph_task
+                    # Get the result (now returns both response and fact-check report)
+                    result, fact_check_report = await graph_task
                     
                     # Send any remaining logs
                     remaining_logs = thinking_logs.get_new_logs(last_log_index)
@@ -572,6 +585,15 @@ async def websocket_chat(websocket: WebSocket):
                             
                             logger.debug(f"Streamed {chunks_sent} chunks to client")
                             full_response = clean_result
+                    
+                    # Send fact-check report if available
+                    if fact_check_report:
+                        fact_check_msg = {
+                            "type": "fact_check",
+                            "content": fact_check_report
+                        }
+                        await websocket.send_json(fact_check_msg)
+                        logger.websocket_event("fact_check", "out", {"verified": fact_check_report.get("verified_claims", 0), "failed": fact_check_report.get("failed_claims", 0)})
                     
                 except Exception as e:
                     import traceback

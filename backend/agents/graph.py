@@ -289,7 +289,7 @@ def create_advisor_graph(location: str = "India"):
         return {"messages": tool_outputs}
 
     def should_continue(state: AgentState) -> str:
-        """Determine if we should continue to tools, validate, or end."""
+        """Determine if we should continue to tools or end."""
         last_message = state["messages"][-1]
         
         # If model wants tools, go to tools
@@ -299,62 +299,61 @@ def create_advisor_graph(location: str = "India"):
         
         # If this was a tool result, go back to agent to synthesize
         if isinstance(last_message, ToolMessage):
+            logger.debug("Routing decision: -> agent (synthesizing tool results)")
             return "agent"
             
-        # If this was an AI final message, route to validation
+        # If this was an AI final message, go to fact-check
         if isinstance(last_message, AIMessage) and last_message.content:
-            logger.debug("Routing decision: -> validate (automatic data check)")
-            return "validate"
+            logger.debug("Routing decision: -> fact_check (verifying and justifying)")
+            return "fact_check"
             
         return END
 
-    def validate_node(state: AgentState) -> dict:
-        """Validate the AI's response for data accuracy."""
+    def fact_check_node(state: AgentState) -> dict:
+        """
+        Fact-check and justify the AI's response.
+        This runs AFTER the response is delivered to provide verification.
+        Returns a structured report as a system message.
+        """
         from backend.agents.validator import get_validator
         
+        logger.graph_step("fact_checker", "start", "Generating fact-check and justification")
+        
         last_message = state["messages"][-1]
-        # Only validate AIMessages with content
+        # Only fact-check AIMessages with content
         if not isinstance(last_message, AIMessage) or not last_message.content:
             return {"messages": []}
             
         validator = get_validator()
-        is_valid, error_msg = validator.validate(last_message.content, state["messages"])
+        report = validator.validate_structured(last_message.content, state["messages"])
         
-        if not is_valid:
-            # Inject a correction request as a HumanMessage (invisible to user, visible to model)
-            logger.graph_step("validator", "loop", "Requesting correction from model")
-            return {"messages": [HumanMessage(content=error_msg)]}
+        # Create a system message with the fact-check report
+        # This will be sent to the client as a separate message
+        fact_check_msg = SystemMessage(content=json.dumps({
+            "type": "fact_check",
+            "report": report
+        }))
         
-        return {"messages": []}
-
-    def check_validation(state: AgentState) -> str:
-        """Check if validation passed or we need correction."""
-        last_message = state["messages"][-1]
-        if isinstance(last_message, HumanMessage) and "DATA INCONSISTENCY DETECTED" in last_message.content:
-            return "agent"
-        return END
+        logger.graph_step("fact_checker", "end", f"Fact-check complete: {report['verified_claims']} verified, {report['failed_claims']} failed")
+        
+        return {"messages": [fact_check_msg]}
 
     workflow = StateGraph(AgentState)
     workflow.add_node("agent", call_model)
     workflow.add_node("tools", execute_tools)
-    workflow.add_node("validate", validate_node)
+    workflow.add_node("fact_check", fact_check_node)
     
     workflow.set_entry_point("agent")
     
     workflow.add_conditional_edges(
         "agent",
         should_continue,
-        {"tools": "tools", "validate": "validate", END: END}
+        {"tools": "tools", "fact_check": "fact_check", END: END}
     )
     workflow.add_edge("tools", "agent")
+    workflow.add_edge("fact_check", END)  # Fact-check always ends
     
-    workflow.add_conditional_edges(
-        "validate",
-        check_validation,
-        {"agent": "agent", END: END}
-    )
-    
-    logger.system("LangGraph workflow compiled with Sentinel Validation")
+    logger.system("LangGraph workflow compiled with post-response fact-checking")
     
     return workflow.compile()
 
