@@ -334,7 +334,7 @@ def create_advisor_graph(location: str = "India"):
             "report": report
         }))
         
-        logger.graph_step("fact_checker", "end", f"Fact-check complete: {report['verified_claims']} verified, {report['failed_claims']} failed")
+        logger.graph_step("fact_checker", "end", f"Fact-check complete: {report['verified_claims']} verified, confidence={report.get('confidence_level', 'unknown')}")
         
         return {"messages": [fact_check_msg]}
 

@@ -35,7 +35,7 @@ const state = {
     reconnectAttempts: 0,
     pingInterval: null,
     location: 'India',
-    searchProvider: 'tavily',
+    searchProvider: 'auto',  // Default to auto (all 3 providers)
     thinkingLogs: [],
     inlineThinkingElement: null,  // Reference to inline thinking section in chat
     inlineThinkingContent: null,  // Reference to content area of inline thinking
@@ -49,6 +49,7 @@ const state = {
 
 const elements = {
     chatMessages: document.getElementById('chatMessages'),
+    chatContainer: document.getElementById('chatContainer'),
     messageInput: document.getElementById('messageInput'),
     sendButton: document.getElementById('sendButton'),
     connectionStatus: document.getElementById('connectionStatus'),
@@ -237,6 +238,9 @@ function addThinkingLog(logData) {
     if (logData.label) {
         elements.typingText.textContent = `ARIA is ${logData.label.toLowerCase()}...`;
     }
+
+    // Scroll to bottom of chat
+    scrollToBottom();
 }
 
 function appendThinkingContent(content) {
@@ -812,10 +816,14 @@ function updateConnectionStatus(status, text) {
 }
 
 function scrollToBottom() {
-    elements.chatMessages.scrollTo({
-        top: elements.chatMessages.scrollHeight,
-        behavior: 'smooth'
-    });
+    if (elements.chatContainer) {
+        requestAnimationFrame(() => {
+            elements.chatContainer.scrollTo({
+                top: elements.chatContainer.scrollHeight,
+                behavior: 'smooth'
+            });
+        });
+    }
 }
 
 function escapeHtml(text) {
@@ -1047,6 +1055,12 @@ if (elements.xaiToggle) {
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize location from select
     state.location = elements.locationSelect.value;
+
+    // Initialize search provider from select (defaults to 'auto' now)
+    if (elements.searchProvider) {
+        state.searchProvider = elements.searchProvider.value;
+        console.log('Search Provider initialized to:', state.searchProvider);
+    }
 
     // Connect to WebSocket
     connectWebSocket();

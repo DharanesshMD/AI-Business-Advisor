@@ -463,8 +463,8 @@ async def websocket_chat(websocket: WebSocket):
                                                     tool_names_used.append(tool_name)
                                                     tool_queries.append({"tool": tool_name, "query": query})
                                                     
-                                                    thinking_logs.add("tool_decision", f"Deciding to search: {tool_name}")
-                                                    thinking_logs.add("tool_start", f"Searching web for: {query[:80]}...")
+                                                    thinking_logs.add("tool_decision", f"Deciding to search: {tool_name} (via {search_provider})")
+                                                    thinking_logs.add("tool_start", f"Searching {search_provider.capitalize()} for: {query[:80]}...")
                                                     
                                             elif msg.content:
                                                 logger.model_thinking("response_generation", f"Content generated: {len(msg.content)} chars")
@@ -545,7 +545,7 @@ async def websocket_chat(websocket: WebSocket):
                                 "status": "complete",
                                 "tool": tool_name,
                                 "query": query[:100],
-                                "content": f"🔍 Searched: {query[:60]}..."
+                                "content": f"🔍 Searched via {search_provider.capitalize()}: {query[:60]}..."
                             }
                             await websocket.send_json(start_msg)
                             logger.websocket_event("tool_status", "out", start_msg)

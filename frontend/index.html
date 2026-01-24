@@ -64,8 +64,10 @@
                             <span style="font-size: 14px;">🔍</span>
                         </label>
                         <select id="searchProvider">
+                            <option value="auto">🚀 Auto (All 3)</option>
                             <option value="tavily">Tavily</option>
                             <option value="perplexity">Perplexity</option>
+                            <option value="duckduckgo">DuckDuckGo (Free)</option>
                         </select>
                     </div>
 
@@ -86,7 +88,7 @@
         </header>
 
         <!-- Main Chat Area -->
-        <main class="chat-container">
+        <main class="chat-container" id="chatContainer">
             <div class="chat-messages" id="chatMessages">
                 <!-- Welcome Message -->
                 <div class="message system-message welcome-message">
@@ -113,14 +115,17 @@
                                     aggregation, and industry trends.</li>
                                 <li>🔍 <strong>Deal Intelligence:</strong> SEC filing analysis (10-K/10-Q) and automated
                                     risk factor extraction via Knowledge Graph.</li>
-                                <li>🧪 <strong>Stress Testing:</strong> Simulate macro shocks (Fed rate hikes, recessions,
+                                <li>🧪 <strong>Stress Testing:</strong> Simulate macro shocks (Fed rate hikes,
+                                    recessions,
                                     oil spikes) and see portfolio impact.</li>
                                 <li>📋 <strong>Strategy & Compliance:</strong> Business planning, competitor analysis,
                                     and location-aware regulations.</li>
                             </ul>
                             <p>I search the <strong>web, market data, and official filings</strong> in real-time to
                                 provide data-driven advice backed by verifiable sources.</p>
-                            <p class="hint">Try: <em>"Stress test AAPL, NVDA, MSFT for a Fed rate hike"</em> or <em>"What happens to my portfolio if there's a recession?"</em></p>
+                            <p class="hint">Try: <em>"Stress test AAPL, NVDA, MSFT for a Fed rate hike"</em> or
+                                <em>"What happens to my portfolio if there's a recession?"</em>
+                            </p>
                         </div>
                     </div>
                 </div>
