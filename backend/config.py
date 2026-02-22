@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Model Configuration
     MODEL_NAME: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
     MODEL_TEMPERATURE: float = 0.6  # Balanced creativity for reasoning model
-    MODEL_MAX_TOKENS: int = 65536   # Extended context for detailed reasoning
+    MODEL_MAX_TOKENS: int = 8192    # Reduced for faster inference (was 65536)
     MODEL_TOP_P: float = 0.95       # Nucleus sampling
     MODEL_FREQUENCY_PENALTY: float = 0  # No frequency penalty
     MODEL_PRESENCE_PENALTY: float = 0   # No presence penalty

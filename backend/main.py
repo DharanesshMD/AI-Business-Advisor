@@ -208,15 +208,21 @@ async def validate_response(request: ValidateRequest):
     logger.separator(f"MANUAL VALIDATION REQUEST")
     
     # Get conversation history for this session to find ground truth (tool outputs)
+    # Combine regular history with the full (non-truncated) tool messages for validation
     history = conversation_histories.get(request.session_id, [])
+    validation_history = conversation_histories.get(f"{request.session_id}_validation", [])
     
-    if not history:
+    # Merge: use validation history (full tool messages) + regular history
+    combined_history = validation_history + [msg for msg in history if not isinstance(msg, ToolMessage)]
+    
+    if not combined_history:
         logger.debug(f"No history found for session {request.session_id}")
         return {"is_valid": True, "message": "No history available for validation."}
     
     validator = get_validator()
     logger.debug(f"Validating message (len={len(request.message_content)}): {request.message_content[:200]}...")
-    report = validator.validate_structured(request.message_content, history)
+    logger.debug(f"Using {len(validation_history)} full tool messages + {len(history)} history messages")
+    report = validator.validate_structured(request.message_content, combined_history)
     
     if report["is_valid"]:
         logger.system("Manual validation: PASSED")
@@ -594,14 +600,28 @@ async def websocket_chat(websocket: WebSocket):
                 total_time = (time.time() - start_time) * 1000
                 logger.debug(f"Total request handling time: {total_time:.0f}ms")
                 
-                # Update history - include ToolMessages for validation
+                # Update history - OPTIMIZE: truncate tool messages to reduce token count
+                # Full tool messages are available in the separate validation store
                 if full_response:
-                    # Add tool messages first (they came before the AI response)
+                    # Store full tool messages for validation in a separate key
+                    validation_key = f"{session_id}_validation"
+                    if validation_key not in conversation_histories:
+                        conversation_histories[validation_key] = []
                     for tool_msg in tool_messages:
-                        history.append(tool_msg)
+                        conversation_histories[validation_key].append(tool_msg)
+                    # Keep only last 10 tool messages for validation
+                    conversation_histories[validation_key] = conversation_histories[validation_key][-10:]
+                    
+                    # Add TRUNCATED tool messages to main history (for context, not full data)
+                    for tool_msg in tool_messages:
+                        truncated_content = tool_msg.content[:500] + "... [truncated for efficiency]" if len(tool_msg.content) > 500 else tool_msg.content
+                        truncated_msg = ToolMessage(content=truncated_content, tool_call_id=tool_msg.tool_call_id)
+                        history.append(truncated_msg)
+                    
                     history.append(AIMessage(content=full_response))
-                    conversation_histories[session_id] = history[-30:]  # Increased to accommodate tool messages
-                    logger.debug(f"History updated with {len(tool_messages)} tool messages, now {len(conversation_histories[session_id])} total messages")
+                    # Reduced from 30 to 10 for faster inference
+                    conversation_histories[session_id] = history[-10:]
+                    logger.debug(f"History updated with {len(tool_messages)} tool messages (truncated), now {len(conversation_histories[session_id])} total messages")
                 
                 logger.separator(f"WEBSOCKET CHAT COMPLETE #{request_id}")
             
@@ -624,6 +644,10 @@ async def websocket_chat(websocket: WebSocket):
             del connections[session_id]
         if session_id in conversation_histories:
             del conversation_histories[session_id]
+        # Also cleanup validation-specific storage
+        validation_key = f"{session_id}_validation"
+        if validation_key in conversation_histories:
+            del conversation_histories[validation_key]
         logger.debug(f"Session {session_id} cleaned up. Active connections: {len(connections)}")
 
 

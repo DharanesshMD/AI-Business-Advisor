@@ -644,7 +644,7 @@ body {
 }
 
 /* ==========================================================================
-   Input Area
+   Input Area & Suggested Playbooks
    ========================================================================== */
 .input-container {
     flex-shrink: 0;
@@ -655,6 +655,34 @@ body {
 .input-wrapper {
     max-width: 900px;
     margin: 0 auto;
+}
+
+/* Suggested Playbooks (Interactive Prompts) */
+.suggested-playbooks {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-md);
+}
+
+.playbook-chip {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: var(--radius-full);
+    padding: 6px 14px;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-accent);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    font-family: var(--font-family);
+}
+
+.playbook-chip:hover {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: var(--color-accent-primary);
+    color: var(--color-text-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--color-accent-glow);
 }
 
 .input-box {

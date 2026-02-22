@@ -289,7 +289,7 @@ def create_advisor_graph(location: str = "India"):
         return {"messages": tool_outputs}
 
     def should_continue(state: AgentState) -> str:
-        """Determine if we should continue to tools, validate, or end."""
+        """Determine if we should continue to tools or end."""
         last_message = state["messages"][-1]
         
         # If model wants tools, go to tools
@@ -301,10 +301,10 @@ def create_advisor_graph(location: str = "India"):
         if isinstance(last_message, ToolMessage):
             return "agent"
             
-        # If this was an AI final message, route to validation
+        # AI final message - skip automatic validation for faster responses
+        # Validation is now done on-demand via the UI "Validate Response" button
         if isinstance(last_message, AIMessage) and last_message.content:
-            logger.debug("Routing decision: -> validate (automatic data check)")
-            return "validate"
+            logger.debug("Routing decision: -> END (validation available on-demand)")
             
         return END
 
@@ -337,24 +337,29 @@ def create_advisor_graph(location: str = "India"):
     workflow = StateGraph(AgentState)
     workflow.add_node("agent", call_model)
     workflow.add_node("tools", execute_tools)
+    # validate_node is kept for manual validation via API but not in automatic flow
     workflow.add_node("validate", validate_node)
     
     workflow.set_entry_point("agent")
     
+    # Routing: agent -> tools (if tool calls) or END (if final response)
+    # Automatic validation is disabled for faster responses
+    # Users can validate via the "Validate Response" button in the UI
     workflow.add_conditional_edges(
         "agent",
         should_continue,
-        {"tools": "tools", "validate": "validate", END: END}
+        {"tools": "tools", END: END}
     )
     workflow.add_edge("tools", "agent")
     
+    # Keep validation edges for potential future use or manual triggers
     workflow.add_conditional_edges(
         "validate",
         check_validation,
         {"agent": "agent", END: END}
     )
     
-    logger.system("LangGraph workflow compiled with Sentinel Validation")
+    logger.system("LangGraph workflow compiled (validation on-demand only)")
     
     return workflow.compile()
 

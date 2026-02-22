@@ -163,6 +163,19 @@
         <!-- Input Area -->
         <footer class="input-container">
             <div class="input-wrapper">
+                <!-- Suggested Playbooks -->
+                <div class="suggested-playbooks" id="suggestedPlaybooks">
+                    <button class="playbook-chip" onclick="document.getElementById('messageInput').value='A SaaS company sees DAU up 25%, revenue flat, and churn rising. Give 3 hypotheses, what data you would request, and what decision you would make first.'; document.getElementById('sendButton').click();">
+                        📊 Run SaaS Diagnostic (DAU up, Revenue Flat)
+                    </button>
+                    <button class="playbook-chip" onclick="document.getElementById('messageInput').value='Build a metric tree for a subscription box business, identifying the primary input and output metrics.'; document.getElementById('sendButton').click();">
+                        🌳 Build a Metric Tree
+                    </button>
+                    <button class="playbook-chip" onclick="document.getElementById('messageInput').value='I am preparing for a board meeting. Ask me 5 clarifying questions about my business model and current challenges before giving me a strategy.'; document.getElementById('sendButton').click();">
+                        👔 Simulate a Board Meeting Q&A
+                    </button>
+                </div>
+
                 <div class="input-box">
                     <textarea id="messageInput" placeholder="Ask me anything about business..." rows="1"
                         aria-label="Message input"></textarea>
