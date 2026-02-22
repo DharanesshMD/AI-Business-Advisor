@@ -302,18 +302,12 @@ def create_advisor_graph(location: str = "India"):
             logger.debug("Routing decision: -> agent (synthesizing tool results)")
             return "agent"
             
-<<<<<<< HEAD
-        # AI final message - skip automatic validation for faster responses
-        # Validation is now done on-demand via the UI "Validate Response" button
-        if isinstance(last_message, AIMessage) and last_message.content:
-            logger.debug("Routing decision: -> END (validation available on-demand)")
-=======
         # If this was an AI final message, go to fact-check
+        # Validation is available on-demand via the UI
         if isinstance(last_message, AIMessage) and last_message.content:
             logger.debug("Routing decision: -> fact_check (verifying and justifying)")
             return "fact_check"
->>>>>>> fa4be422a5a44630e2f498229ca1983b05910050
-            
+
         return END
 
     def fact_check_node(state: AgentState) -> dict:
@@ -348,43 +342,32 @@ def create_advisor_graph(location: str = "India"):
     workflow = StateGraph(AgentState)
     workflow.add_node("agent", call_model)
     workflow.add_node("tools", execute_tools)
-<<<<<<< HEAD
     # validate_node is kept for manual validation via API but not in automatic flow
     workflow.add_node("validate", validate_node)
-=======
     workflow.add_node("fact_check", fact_check_node)
->>>>>>> fa4be422a5a44630e2f498229ca1983b05910050
-    
+
     workflow.set_entry_point("agent")
-    
+
     # Routing: agent -> tools (if tool calls) or END (if final response)
     # Automatic validation is disabled for faster responses
     # Users can validate via the "Validate Response" button in the UI
     workflow.add_conditional_edges(
         "agent",
         should_continue,
-<<<<<<< HEAD
-        {"tools": "tools", END: END}
-=======
         {"tools": "tools", "fact_check": "fact_check", END: END}
->>>>>>> fa4be422a5a44630e2f498229ca1983b05910050
     )
     workflow.add_edge("tools", "agent")
     workflow.add_edge("fact_check", END)  # Fact-check always ends
-    
-<<<<<<< HEAD
+
     # Keep validation edges for potential future use or manual triggers
     workflow.add_conditional_edges(
         "validate",
         check_validation,
         {"agent": "agent", END: END}
     )
-    
-    logger.system("LangGraph workflow compiled (validation on-demand only)")
-=======
-    logger.system("LangGraph workflow compiled with post-response fact-checking")
->>>>>>> fa4be422a5a44630e2f498229ca1983b05910050
-    
+
+    logger.system("LangGraph workflow compiled (validation on-demand, fact-checking post-response)")
+
     return workflow.compile()
 
 
