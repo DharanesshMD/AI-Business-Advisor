@@ -49,10 +49,68 @@ def web_search(query: str, max_results: int = 5) -> str:
     logger = get_logger()
     logger.debug(f"DEBUG: web_search responding with provider: '{provider}' (type: {type(provider)})")
     
-    if provider and provider.lower() == "perplexity":
+    if provider and provider.lower() == "auto":
+        return _web_search_auto(query, max_results)
+    elif provider and provider.lower() == "perplexity":
         return _web_search_perplexity(query, max_results)
+    elif provider and provider.lower() == "duckduckgo":
+        return _web_search_duckduckgo(query, max_results)
     else:
         return _web_search_tavily(query, max_results)
+
+
+def _web_search_auto(query: str, max_results: int) -> str:
+    """Query all 3 search providers in parallel and combine results."""
+    import concurrent.futures
+    logger = get_logger()
+    logger.separator(f"WEB SEARCH (AUTO - All 3 Providers): {query}")
+    
+    start_time = time.time()
+    
+    def search_tavily():
+        try:
+            return ("tavily", _web_search_tavily(query, max_results))
+        except Exception as e:
+            return ("tavily", f"Error: {str(e)}")
+    
+    def search_perplexity():
+        try:
+            return ("perplexity", _web_search_perplexity(query, max_results))
+        except Exception as e:
+            return ("perplexity", f"Error: {str(e)}")
+    
+    def search_duckduckgo():
+        try:
+            return ("duckduckgo", _web_search_duckduckgo(query, max_results))
+        except Exception as e:
+            return ("duckduckgo", f"Error: {str(e)}")
+    
+    # Run all 3 searches in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        futures = [
+            executor.submit(search_tavily),
+            executor.submit(search_perplexity),
+            executor.submit(search_duckduckgo)
+        ]
+        results = [f.result() for f in concurrent.futures.as_completed(futures)]
+    
+    duration_ms = (time.time() - start_time) * 1000
+    logger.api_response("AUTO (All 3)", 200, duration_ms)
+    
+    # Combine and format results
+    combined = ["**🚀 Combined Search Results (All 3 Providers)**\n"]
+    combined.append(f"*Query completed in {duration_ms:.0f}ms using Tavily + Perplexity + DuckDuckGo*\n")
+    combined.append("---\n")
+    
+    for provider_name, result in results:
+        icon = {"tavily": "🔵", "perplexity": "🟣", "duckduckgo": "🟢"}.get(provider_name, "⚪")
+        combined.append(f"\n### {icon} {provider_name.capitalize()} Results\n")
+        combined.append(result)
+        combined.append("\n")
+    
+    combined.append("\n---\n*Combined from 3 sources for comprehensive coverage*")
+    
+    return "\n".join(combined)
 
 
 def _web_search_tavily(query: str, max_results: int) -> str:
@@ -122,6 +180,54 @@ def _web_search_perplexity(query: str, max_results: int) -> str:
     
     except Exception as e:
         logger.error(f"Web Search Error (Perplexity)", e)
+        return f"Search error: {str(e)}"
+
+
+def _web_search_duckduckgo(query: str, max_results: int) -> str:
+    """DuckDuckGo search - free, no API key required."""
+    logger = get_logger()
+    logger.separator(f"WEB SEARCH (DuckDuckGo): {query}")
+    
+    try:
+        from backend.search.engines.duckduckgo import get_duckduckgo_engine
+        import asyncio
+        
+        logger.api_request("DuckDuckGo", "search", f"query='{query}', max_results={max_results}")
+        
+        start_time = time.time()
+        engine = get_duckduckgo_engine()
+        
+        # Run async search in sync context
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, engine.search(query, max_results))
+                results = future.result()
+        else:
+            results = loop.run_until_complete(engine.search(query, max_results))
+        
+        duration_ms = (time.time() - start_time) * 1000
+        
+        logger.api_response("DuckDuckGo", 200, duration_ms)
+        logger.debug(f"DuckDuckGo returned {len(results)} results")
+        
+        formatted_results = ["**Sources (DuckDuckGo - Free):**"]
+        for i, result in enumerate(results, 1):
+            title = result.get("title", "No title")
+            url = result.get("url", "")
+            content = result.get("content", "")[:300]
+            formatted_results.append(f"\n{i}. **{title}**\n   URL: {url}\n   {content}...")
+        
+        return "\n".join(formatted_results)
+    
+    except Exception as e:
+        logger.error(f"Web Search Error (DuckDuckGo)", e)
         return f"Search error: {str(e)}"
 
 
@@ -234,6 +340,129 @@ def _search_regulations_perplexity(topic: str, location: str, regulation_type: O
     except Exception as e:
         logger.error("Regulation search error (Perplexity)", e)
         return f"Error: {str(e)}"
+
+
+@tool
+def search_domain_experts(
+    topic: str, 
+    expertise_type: Optional[str] = None,
+    location: Optional[str] = None,
+    max_results: int = 5
+) -> str:
+    """
+    Find domain experts, case studies, and real-world approaches for a business topic.
+    
+    ALWAYS use this tool for business queries to enrich responses with:
+    - Real experts who have solved similar problems
+    - Their published approaches and methodologies
+    - Case studies and success stories
+    - Expert profiles (name, title, company, location)
+    
+    Args:
+        topic: Business topic or problem (e.g., "SaaS pricing strategy", "startup fundraising")
+        expertise_type: Type of expert to find (e.g., "founder", "consultant", "investor", "author")
+        location: Geographic filter (optional, e.g., "Silicon Valley", "India")
+        max_results: Number of experts to find (default: 5)
+    
+    Returns:
+        JSON with experts array containing name, title, company, location, approach, and source_url
+    """
+    provider = get_search_provider()
+    logger = get_logger()
+    logger.separator(f"DOMAIN EXPERT SEARCH: {topic}")
+    
+    try:
+        import json
+        
+        # Build expert-focused search query
+        query_parts = [f'"{topic}"']
+        
+        if expertise_type:
+            query_parts.append(expertise_type)
+        else:
+            query_parts.append("(expert OR founder OR CEO OR consultant OR author)")
+        
+        query_parts.append("(approach OR strategy OR methodology OR case study OR interview)")
+        
+        if location:
+            query_parts.append(location)
+        
+        query = " ".join(query_parts)
+        
+        logger.api_request("Expert Search", "search", f"query='{query}'")
+        start_time = time.time()
+        
+        # Use Tavily or Perplexity based on provider
+        if provider and provider.lower() == "perplexity":
+            client = get_perplexity_client()
+            response = client.search.create(query=query, max_results=max_results)
+            raw_results = []
+            for result in response.results:
+                raw_results.append({
+                    "title": getattr(result, 'title', ''),
+                    "url": getattr(result, 'url', ''),
+                    "content": getattr(result, 'snippet', '')
+                })
+        else:
+            client = get_tavily_client()
+            response = client.search(
+                query=query,
+                max_results=max_results,
+                include_answer=True,
+                search_depth="advanced"
+            )
+            raw_results = response.get("results", [])
+        
+        duration_ms = (time.time() - start_time) * 1000
+        logger.api_response("Expert Search", 200, duration_ms)
+        
+        # Parse results into structured expert data
+        experts = []
+        case_studies = []
+        
+        for result in raw_results:
+            title = result.get("title", "")
+            url = result.get("url", "")
+            content = result.get("content", "")
+            
+            # Heuristic extraction of expert info from search results
+            expert_entry = {
+                "source_title": title,
+                "source_url": url,
+                "snippet": content[:500] if content else "",
+                "extracted_info": {
+                    "possible_expert": True if any(kw in title.lower() for kw in ["ceo", "founder", "expert", "interview", "says", "shares"]) else False,
+                    "possible_case_study": True if any(kw in title.lower() for kw in ["case study", "how", "strategy", "approach"]) else False
+                }
+            }
+            
+            if expert_entry["extracted_info"]["possible_case_study"]:
+                case_studies.append({
+                    "title": title,
+                    "url": url,
+                    "summary": content[:300] if content else ""
+                })
+            else:
+                experts.append(expert_entry)
+        
+        result_data = {
+            "topic": topic,
+            "expertise_type": expertise_type,
+            "location": location,
+            "search_provider": provider or "tavily",
+            "results_count": len(raw_results),
+            "experts_found": experts[:max_results],
+            "case_studies": case_studies[:3],
+            "instructions": "Use the snippets to extract expert names, titles, companies, and their approaches. Present as a table in your response."
+        }
+        
+        logger.debug(f"Found {len(experts)} potential experts, {len(case_studies)} case studies")
+        
+        return json.dumps(result_data, indent=2)
+    
+    except Exception as e:
+        logger.error("Domain expert search error", e)
+        return json.dumps({"error": str(e), "topic": topic})
 
 
 @tool
@@ -655,6 +884,7 @@ def get_tools() -> list:
     tools = [
         web_search, 
         search_regulations, 
+        search_domain_experts,
         analyze_portfolio_tool,
         analyze_sentiment_tool,
         check_risk_tool,

@@ -41,3 +41,6 @@ neo4j==5.16.0
 asyncpg==0.29.0
 uvloop==0.19.0 ; sys_platform != "win32"
 yfinance>=1.0
+
+# Free Search (DuckDuckGo)
+ddgs>=9.0.0
