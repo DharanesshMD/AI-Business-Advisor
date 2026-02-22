@@ -5,11 +5,14 @@ Uses raw OpenAI SDK with NVIDIA NIM base_url for inference and tool calling.
 
 import json
 import time
+import os
 from typing import TypedDict, Annotated, Sequence
 from openai import OpenAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
+from langgraph.checkpoint.sqlite import SqliteSaver
+import sqlite3
 
 from backend.config import get_settings
 from backend.agents.tools import get_tools
@@ -89,7 +92,7 @@ def messages_to_openai_format(messages: list[BaseMessage]) -> list[dict]:
     return result
 
 
-def create_advisor_graph(location: str = "India"):
+def create_advisor_graph(location: str = "India", **kwargs):
     """
     Create the LangGraph workflow for the Business Advisor.
     """
@@ -359,7 +362,7 @@ def create_advisor_graph(location: str = "India"):
 
     logger.system("LangGraph workflow compiled (validation on-demand, fact-checking post-response)")
 
-    return workflow.compile()
+    return workflow.compile(checkpointer=kwargs.get('checkpointer', None))
 
 
 

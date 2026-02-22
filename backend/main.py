@@ -11,6 +11,8 @@ import threading
 import contextvars
 from contextlib import asynccontextmanager
 from typing import Optional
+import sqlite3
+import os
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 from backend.config import get_settings
 from backend.agents.graph import create_advisor_graph
@@ -25,6 +28,12 @@ from backend.agents.tools import set_search_provider
 from backend.agents.portfolio import get_portfolio_agent
 from backend.logger import get_logger
 
+# Database configuration for LangGraph memory
+DB_PATH = "memory.sqlite"
+
+# Global checkpointer state
+checkpointer = None
+db_conn = None
 
 # Store active connections and their conversation history
 connections: dict = {}
@@ -122,18 +131,35 @@ def sanitize_log_for_ui(log_entry: dict) -> dict:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
+    global db_conn, checkpointer
     logger = get_logger()
     logger.separator("AI BUSINESS ADVISOR - STARTUP")
     logger.system("Application starting up...")
     logger.system(f"Version: {settings.APP_VERSION}")
     logger.system(f"Model: {settings.MODEL_NAME}")
     logger.system(f"Debug Mode: {settings.DEBUG}")
+
+    # Initialize persistent memory database
+    try:
+        db_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        checkpointer = SqliteSaver(db_conn)
+        checkpointer.setup()
+        logger.system(f"SQLite Checkpointer initialized at {DB_PATH}")
+    except Exception as e:
+        logger.error(f"Failed to initialize SQLite Checkpointer: {e}")
+
     yield
+
     logger.separator("AI BUSINESS ADVISOR - SHUTDOWN")
     logger.system("Application shutting down...")
     logger.system(f"Active connections being closed: {len(connections)}")
     connections.clear()
     conversation_histories.clear()
+
+    if db_conn:
+        db_conn.close()
+        logger.system("SQLite Checkpointer connection closed.")
+
     logger.system("Cleanup complete. Goodbye!")
 
 
@@ -263,33 +289,30 @@ async def chat(request: ChatRequest):
     
     try:
         start_time = time.time()
-        
-        graph = create_advisor_graph(request.location)
-        history.append(HumanMessage(content=request.message))
-        
+
+        graph = create_advisor_graph(request.location, checkpointer=checkpointer)
+
         logger.model_thinking("graph_invoke", "Starting synchronous graph execution")
-        
+
+        config = {"configurable": {"thread_id": session_id}}
+
         result = graph.invoke({
-            "messages": history,
+            "messages": [HumanMessage(content=request.message)],
             "location": request.location
-        })
-        
+        }, config)
+
         duration_ms = (time.time() - start_time) * 1000
-        
+
         # Get the final response
         response = ""
         for msg in reversed(result["messages"]):
             if isinstance(msg, AIMessage) and msg.content and not msg.tool_calls:
                 response = msg.content
                 break
-        
+
         logger.ai_response(response)
         logger.debug(f"Total request time: {duration_ms:.0f}ms")
-        
-        # Update history
-        history.append(AIMessage(content=response))
-        conversation_histories[session_id] = history[-20:]  # Keep last 20 messages
-        
+
         logger.separator(f"REST API CHAT COMPLETE #{request_id}")
         
         return ChatResponse(response=response, session_id=session_id)
@@ -416,27 +439,28 @@ async def websocket_chat(websocket: WebSocket):
                     # Create graph
                     logger.model_thinking("initialization", "Creating advisor graph")
                     await send_thinking_log("initialization", "Initializing AI advisor...")
-                    
-                    graph = create_advisor_graph(location)
-                    
+
+                    graph = create_advisor_graph(location, checkpointer=checkpointer)
+
                     # Use streaming invoke to get step-by-step updates
                     full_response = ""
                     tool_used = False
                     tool_names_used = []
                     tool_queries = []
                     tool_messages = []  # Capture ToolMessage objects for validator
-                    
+
                     # Create a queue for async communication
                     event_queue = asyncio.Queue()
-                    
+
                     def run_graph():
                         """Run the graph and collect events."""
                         nonlocal full_response, tool_used, tool_names_used, tool_queries, tool_messages
                         logger.model_thinking("execution", "Starting graph stream execution")
                         step_count = 0
                         fact_check_report = None
-                        
-                        for step in graph.stream({"messages": history, "location": location}):
+                        config = {"configurable": {"thread_id": session_id}}
+
+                        for step in graph.stream({"messages": history, "location": location}, config):
                             step_count += 1
                             for node_name, output in step.items():
                                 logger.graph_step(node_name, "processing", f"Step {step_count}")
