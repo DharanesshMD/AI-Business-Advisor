@@ -342,8 +342,6 @@ def create_advisor_graph(location: str = "India"):
     workflow = StateGraph(AgentState)
     workflow.add_node("agent", call_model)
     workflow.add_node("tools", execute_tools)
-    # validate_node is kept for manual validation via API but not in automatic flow
-    workflow.add_node("validate", validate_node)
     workflow.add_node("fact_check", fact_check_node)
 
     workflow.set_entry_point("agent")
@@ -358,13 +356,6 @@ def create_advisor_graph(location: str = "India"):
     )
     workflow.add_edge("tools", "agent")
     workflow.add_edge("fact_check", END)  # Fact-check always ends
-
-    # Keep validation edges for potential future use or manual triggers
-    workflow.add_conditional_edges(
-        "validate",
-        check_validation,
-        {"agent": "agent", END: END}
-    )
 
     logger.system("LangGraph workflow compiled (validation on-demand, fact-checking post-response)")
 
