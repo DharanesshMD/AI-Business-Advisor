@@ -10,6 +10,7 @@ python-multipart==0.0.18
 langchain==0.3.14
 langchain-core==0.3.29
 langgraph==0.2.60
+langgraph-checkpoint-sqlite<3.0.0
 langchain-nvidia-ai-endpoints==0.3.8
 
 # OpenAI SDK (used for NVIDIA NIM API)
