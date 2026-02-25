@@ -155,6 +155,10 @@ function handleSocketMessage(event) {
                 finishMessage();
                 break;
 
+            case 'fact_check':
+                handleFactCheck(data.content);
+                break;
+
             case 'error':
                 showError(data.content);
                 break;
@@ -166,6 +170,38 @@ function handleSocketMessage(event) {
     } catch (error) {
         console.error('Error parsing message:', error);
     }
+}
+
+function handleFactCheck(report) {
+    console.log('Fact Check Report:', report);
+    
+    if (!report || !report.summary) return;
+
+    // Create a special validation message
+    const validationDiv = document.createElement('div');
+    validationDiv.className = 'validation-report';
+    
+    // Set status class based on validity
+    const statusClass = report.is_valid ? 'success' : 'error';
+    validationDiv.classList.add(statusClass);
+    
+    validationDiv.innerHTML = `
+        <div class="val-header">
+            <span class="val-icon">${report.is_valid ? '🛡️' : '⚠️'}</span>
+            <span class="val-title">System Verification Report</span>
+        </div>
+        <div class="val-summary">
+            ${renderMarkdown(report.summary)}
+        </div>
+        <div class="validation-footer" style="font-size: var(--font-size-xs); color: var(--color-text-muted); display: flex; justify-content: space-between; margin-top: var(--space-md); border-top: 1px solid var(--glass-border); padding-top: var(--space-sm);">
+            <span>Verified by ARIA Real-time Auditor</span>
+            <span>Claims Checked: ${report.total_claims || 0}</span>
+        </div>
+    `;
+
+    // Append to chat
+    elements.chatMessages.appendChild(validationDiv);
+    scrollToBottom();
 }
 
 // =============================================================================
