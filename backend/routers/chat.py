@@ -9,11 +9,12 @@ import time
 import threading
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from backend.agents.graph import create_advisor_graph
 from backend.agents.tools import set_search_provider
+from backend.auth import get_current_user, get_current_user_ws
 from backend.config import get_settings
 import backend.db as db
 from backend.logger import get_logger
@@ -22,6 +23,7 @@ import backend.state as state
 
 router = APIRouter()
 settings = get_settings()
+limiter = state.limiter
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -99,23 +101,24 @@ class _ThinkingCollector:
 # ---------------------------------------------------------------------------
 
 @router.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+@limiter.limit("10/minute")
+async def chat(request: Request, chat_req: ChatRequest, user: str = Depends(get_current_user)):
     """Synchronous (non-streaming) chat endpoint."""
     logger = get_logger()
     request_id = logger.new_request()
-    location = request.location or "India"
+    location = chat_req.location or "India"
 
     logger.separator(f"REST API CHAT REQUEST #{request_id}")
-    logger.user_input(request.message, location)
+    logger.user_input(chat_req.message, location)
 
-    session_id = request.session_id or str(id(request))
+    session_id = chat_req.session_id or str(id(chat_req))
     logger.debug(f"Session: {session_id}")
 
     try:
         graph  = create_advisor_graph(location, checkpointer=state.checkpointer)
         config = {"configurable": {"thread_id": session_id}}
         result = graph.invoke(
-            {"messages": [HumanMessage(content=request.message)], "location": location},
+            {"messages": [HumanMessage(content=chat_req.message)], "location": location},
             config,
         )
 
@@ -126,7 +129,7 @@ async def chat(request: ChatRequest):
                 break
 
         # Persist to PostgreSQL (no-op if unavailable)
-        await db.append_message(session_id, HumanMessage(content=request.message))
+        await db.append_message(session_id, HumanMessage(content=chat_req.message))
         if response:
             await db.append_message(session_id, AIMessage(content=response))
 
@@ -143,7 +146,7 @@ async def chat(request: ChatRequest):
 # ---------------------------------------------------------------------------
 
 @router.websocket("/ws/chat")
-async def websocket_chat(websocket: WebSocket):
+async def websocket_chat(websocket: WebSocket, user: str = Depends(get_current_user_ws)):
     """Streaming WebSocket chat endpoint."""
     logger = get_logger()
     await websocket.accept()

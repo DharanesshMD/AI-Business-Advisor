@@ -306,18 +306,12 @@ def _hhi_analysis(
         acquirer_market_share *= 100
         target_market_share   *= 100
 
-    remainder = max(0.0, 100.0 - sum(all_shares_pre))
-    if remainder > 0:
-        all_shares_pre.append(remainder)
-
+    # Remainder is assumed to be fully atomized (highly fragmented), contributing ~0 to HHI
     hhi_pre = sum(s ** 2 for s in all_shares_pre)
 
     # Post-deal: merge acquirer + target share
     combined_share = acquirer_market_share + target_market_share
     all_shares_post = [combined_share] + other_shares
-    remainder_post = max(0.0, 100.0 - sum(all_shares_post))
-    if remainder_post > 0:
-        all_shares_post.append(remainder_post)
     hhi_post = sum(s ** 2 for s in all_shares_post)
 
     delta_hhi = hhi_post - hhi_pre

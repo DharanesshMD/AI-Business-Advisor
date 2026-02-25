@@ -29,8 +29,11 @@ httpx==0.28.1
 aiohttp==3.11.11
 asyncpg==0.29.0
 
-# Perplexity SDK
-perplexityai==0.6.0
+# Rate Limiting & Security
+slowapi==0.1.9
+python-jose==3.5.0
+passlib==1.7.4
+bcrypt==4.3.0
 
 # Phase 1: Quantitative Finance & Infrastructure
 numpy==1.26.3

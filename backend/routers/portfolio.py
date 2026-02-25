@@ -4,17 +4,21 @@ Portfolio analysis REST and WebSocket endpoints.
 import json
 import time
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 from backend.agents.portfolio import get_portfolio_agent
+from backend.auth import get_current_user, get_current_user_ws
 from backend.logger import get_logger
 from backend.models import PortfolioRequest
+import backend.state as state
 
 router = APIRouter()
+limiter = state.limiter
 
 
 @router.post("/api/portfolio/analyze")
-async def analyze_portfolio(request: PortfolioRequest):
+@limiter.limit("5/minute")
+async def analyze_portfolio(request: Request, portfolio_req: PortfolioRequest, user: str = Depends(get_current_user)):
     """
     Analyze a portfolio and return risk metrics, valuations, and projections.
     Holdings are now strictly validated via HoldingModel.
@@ -25,7 +29,7 @@ async def analyze_portfolio(request: PortfolioRequest):
     try:
         agent   = get_portfolio_agent()
         # Convert validated Pydantic models back to dicts for the agent
-        holdings_dicts = [h.model_dump() for h in request.holdings]
+        holdings_dicts = [h.model_dump() for h in portfolio_req.holdings]
         result  = await agent.analyze_portfolio(holdings_dicts)
 
         if "error" in result:
@@ -49,7 +53,7 @@ async def analyze_portfolio(request: PortfolioRequest):
 
 
 @router.websocket("/ws/portfolio")
-async def websocket_portfolio(websocket: WebSocket):
+async def websocket_portfolio(websocket: WebSocket, user: str = Depends(get_current_user_ws)):
     """Real-time portfolio update WebSocket."""
     logger = get_logger()
     await websocket.accept()

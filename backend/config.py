@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # CORS Settings (for frontend)
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5500", "http://127.0.0.1:5500"]
 
+    # Authentication (Phase 4 Hardening)
+    REQUIRE_AUTH: bool = False
+    JWT_SECRET_KEY: str = "your-super-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+
     # Database & Cache
     POSTGRES_URI: str = "postgresql://advisor:advisor_password@localhost:5432/ai_advisor"
     REDIS_URI: str = "redis://localhost:6379/0"

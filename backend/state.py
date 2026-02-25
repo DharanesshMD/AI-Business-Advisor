@@ -3,6 +3,8 @@ Shared application state for AI Business Advisor.
 Centralises mutable state so it can be imported by routers without circular dependencies.
 """
 from typing import Any, Dict, List, Optional
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 # Active WebSocket connections:  session_id -> WebSocket
 connections: Dict[str, Any] = {}
@@ -16,3 +18,6 @@ checkpointer: Optional[Any] = None
 
 # Raw SQLite connection kept alive for the checkpointer
 db_conn: Optional[Any] = None
+
+# Global rate limiter (uses client IP by default)
+limiter = Limiter(key_func=get_remote_address)

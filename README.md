@@ -133,6 +133,8 @@ AI-Business-Advisor/
 | `NEO4J_URI` | No | Neo4j bolt URI — enables knowledge graph |
 | `NEO4J_PASSWORD` | No | Neo4j password |
 | `CORS_ORIGINS` | No | Comma-separated allowed origins (default: `http://localhost:8000`) |
+| `REQUIRE_AUTH` | No | Set to `True` to enable JWT authentication on endpoints (default: `False`) |
+| `JWT_SECRET_KEY` | No | Secret key used to verify tokens |
 
 ## API Reference
 
@@ -192,6 +194,20 @@ Constraints: `message` 1–4,000 chars, `location` max 100 chars.
 Constraints: 1–50 holdings, simulations 100–10,000, days 1–365.
 Returns VaR, CVaR, stress-test scenarios. Includes `"warning"` key when using mock price data.
 
+### REST: `POST /api/deal/analyze`
+
+```json
+{
+  "target_symbol": "MSFT",
+  "peer_symbols": ["AAPL", "GOOGL"],
+  "acquirer_market_share": 20.0,
+  "target_market_share": 10.0
+}
+```
+
+Returns M&A Deal Intelligence report (DCF, Comparables, Precedent Transactions, HHI risk).
+Includes `"warning"` key when live data is unavailable and mock metrics are used.
+
 ### REST: `POST /api/validate`
 
 ```json
@@ -229,13 +245,15 @@ python -m pytest -v
 - *"What licenses do I need to start a food delivery app in Singapore?"*
 - *"Analyze my portfolio: 10 shares of AAPL at $150, 5 MSFT at $300"*
 
-## Security
+## Security & Hardening
 
-- CORS restricted to configured origins (no wildcard `*`)
-- All request fields validated with strict Pydantic bounds
-- Error responses never expose internal exception details
-- API keys stored in environment variables only
-- Non-root Docker user for container security
+- **Authentication**: Opt-in JWT bearer token validation on all endpoints
+- **Rate Limiting**: `slowapi` limits API requests (default 10/min for chat, 5/min for compute)
+- **Input Validation**: All request fields validated with strict Pydantic bounds
+- **CORS**: Restricted to configured origins (no wildcard `*`)
+- **Error Handling**: Responses never expose internal exception details
+- **Environment**: API keys stored in environment variables only
+- **Container**: Non-root Docker user for container security
 
 ## License
 

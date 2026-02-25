@@ -11,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from langgraph.checkpoint.sqlite import SqliteSaver
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 
 import backend.state as state
 import backend.db as db
@@ -76,6 +78,9 @@ app = FastAPI(
     description="AI-powered business advisory chatbot with real-time web search.",
     lifespan=lifespan,
 )
+
+app.state.limiter = state.limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
