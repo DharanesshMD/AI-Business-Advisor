@@ -101,3 +101,59 @@ class TestValidateEndpoint:
         })
         assert resp.status_code == 200
         assert resp.json().get("is_valid") is True
+
+
+class TestDealEndpoint:
+    _VALID_PAYLOAD = {
+        "target_symbol": "MSFT",
+        "peer_symbols": ["AAPL", "GOOGL"],
+        "acquirer_market_share": 20.0,
+        "target_market_share": 10.0,
+    }
+
+    def test_missing_target_symbol_returns_422(self, client):
+        payload = {k: v for k, v in self._VALID_PAYLOAD.items() if k != "target_symbol"}
+        resp = client.post("/api/deal/analyze", json=payload)
+        assert resp.status_code == 422
+
+    def test_invalid_target_symbol_returns_422(self, client):
+        resp = client.post("/api/deal/analyze", json={
+            **self._VALID_PAYLOAD,
+            "target_symbol": "MS1FT",    # digit not allowed
+        })
+        assert resp.status_code == 422
+
+    def test_invalid_peer_symbol_returns_422(self, client):
+        resp = client.post("/api/deal/analyze", json={
+            **self._VALID_PAYLOAD,
+            "peer_symbols": ["AAPL", "GO1GL"],   # digit in peer
+        })
+        assert resp.status_code == 422
+
+    def test_too_many_peers_returns_422(self, client):
+        resp = client.post("/api/deal/analyze", json={
+            **self._VALID_PAYLOAD,
+            "peer_symbols": [f"T{i:02d}" for i in range(11)],  # 11 > max 10
+        })
+        assert resp.status_code == 422
+
+    def test_zero_acquirer_share_returns_422(self, client):
+        resp = client.post("/api/deal/analyze", json={
+            **self._VALID_PAYLOAD,
+            "acquirer_market_share": 0.0,
+        })
+        assert resp.status_code == 422
+
+    def test_wacc_out_of_range_returns_422(self, client):
+        resp = client.post("/api/deal/analyze", json={
+            **self._VALID_PAYLOAD,
+            "wacc": 0.99,   # > 0.50 limit
+        })
+        assert resp.status_code == 422
+
+    def test_control_premium_out_of_range_returns_422(self, client):
+        resp = client.post("/api/deal/analyze", json={
+            **self._VALID_PAYLOAD,
+            "control_premium": 1.5,   # > 1.00 limit
+        })
+        assert resp.status_code == 422
