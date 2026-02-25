@@ -15,6 +15,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from backend.agents.graph import create_advisor_graph
 from backend.agents.tools import set_search_provider
 from backend.config import get_settings
+import backend.db as db
 from backend.logger import get_logger
 from backend.models import ChatRequest, ChatResponse
 import backend.state as state
@@ -124,6 +125,11 @@ async def chat(request: ChatRequest):
                 response = str(msg.content)
                 break
 
+        # Persist to PostgreSQL (no-op if unavailable)
+        await db.append_message(session_id, HumanMessage(content=request.message))
+        if response:
+            await db.append_message(session_id, AIMessage(content=response))
+
         logger.separator(f"REST API CHAT COMPLETE #{request_id}")
         return ChatResponse(response=response, session_id=session_id)
 
@@ -144,7 +150,10 @@ async def websocket_chat(websocket: WebSocket):
 
     session_id = str(id(websocket))
     state.connections[session_id] = websocket
-    state.conversation_histories[session_id] = []
+
+    # Seed in-memory history from PostgreSQL (empty list if DB unavailable)
+    db_history = await db.get_history(session_id)
+    state.conversation_histories[session_id] = db_history
 
     logger.set_session(session_id)
     logger.separator("WEBSOCKET CONNECTION ESTABLISHED")
@@ -325,19 +334,27 @@ async def websocket_chat(websocket: WebSocket):
             await websocket.send_json({"type": "done", "content": ""})
             logger.separator(f"WEBSOCKET CHAT COMPLETE #{request_id}")
 
-            # Update history
+            # Update history (in-memory + PostgreSQL)
             if full_response:
                 val_key = f"{session_id}_validation"
                 val_hist = state.conversation_histories.setdefault(val_key, [])
                 val_hist.extend(tool_messages)
                 state.conversation_histories[val_key] = val_hist[-10:]
 
+                # Persist human message
+                await db.append_message(session_id, HumanMessage(content=user_message))
+
                 for tm in tool_messages:
                     trunc = (tm.content[:500] + "... [truncated]"
                              if len(tm.content) > 500 else tm.content)
-                    history.append(ToolMessage(content=trunc, tool_call_id=tm.tool_call_id))
+                    truncated_tm = ToolMessage(content=trunc, tool_call_id=tm.tool_call_id)
+                    history.append(truncated_tm)
+                    await db.append_message(session_id, truncated_tm)
+                    await db.append_message(val_key, tm, validation=True)
 
-                history.append(AIMessage(content=full_response))
+                ai_msg = AIMessage(content=full_response)
+                history.append(ai_msg)
+                await db.append_message(session_id, ai_msg)
                 state.conversation_histories[session_id] = history[-10:]
 
     except WebSocketDisconnect:

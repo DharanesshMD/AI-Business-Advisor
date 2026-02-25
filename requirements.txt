@@ -27,6 +27,7 @@ python-dotenv==1.0.1
 # Async Support
 httpx==0.28.1
 aiohttp==3.11.11
+asyncpg==0.29.0
 
 # Perplexity SDK
 perplexityai==0.6.0

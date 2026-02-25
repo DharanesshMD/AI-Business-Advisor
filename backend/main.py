@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 import backend.state as state
+import backend.db as db
 from backend.config import get_settings
 from backend.logger import get_logger
 from backend.models import HealthResponse
@@ -39,12 +40,19 @@ async def lifespan(app: FastAPI):
     logger.system(f"Debug   : {settings.DEBUG}")
 
     try:
-        state.db_conn     = sqlite3.connect(_DB_PATH, check_same_thread=False)
+        state.db_conn      = sqlite3.connect(_DB_PATH, check_same_thread=False)
         state.checkpointer = SqliteSaver(state.db_conn)
         state.checkpointer.setup()
         logger.system(f"SQLite checkpointer ready at {_DB_PATH}")
     except Exception as e:
         logger.error("Failed to initialise SQLite checkpointer", e)
+
+    # Initialise PostgreSQL connection pool (non-fatal if unavailable)
+    await db.init_pool(settings.POSTGRES_URI)
+    if db.is_available():
+        logger.system("PostgreSQL pool ready — conversation history will persist.")
+    else:
+        logger.system("PostgreSQL unavailable — using in-memory history only.")
 
     yield
 
@@ -54,6 +62,7 @@ async def lifespan(app: FastAPI):
     if state.db_conn:
         state.db_conn.close()
         logger.system("SQLite connection closed.")
+    await db.close_pool()
     logger.system("Goodbye!")
 
 
