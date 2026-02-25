@@ -102,7 +102,8 @@ class ResponseValidator:
                 price = float(m.group(2).replace(',', ''))
                 if ticker not in skip_list and price >= MIN_STOCK_PRICE:
                     add_claim("price", ticker, price, "$")
-            except: continue
+            except (ValueError, IndexError):
+                continue
 
         # ============ STRATEGY 2: Ticker + Percentage Impact ============
         # Matches: AAPL Impact -5.0%, NVDA: +3.2%
@@ -116,7 +117,8 @@ class ResponseValidator:
                 pct_value = float(m.group(2))
                 if ticker not in skip_list:
                     add_claim("percent", ticker, pct_value, "%")
-            except: continue
+            except (ValueError, IndexError):
+                continue
         
         # ============ STRATEGY 3: Ticker + Dollar Loss/Gain ============
         # Matches: AAPL ($500 loss), MSFT -$1,500
@@ -130,7 +132,8 @@ class ResponseValidator:
                 dollar_value = float(m.group(2).replace(',', ''))
                 if ticker not in skip_list and dollar_value >= MIN_STOCK_PRICE:
                     add_claim("dollar", ticker, dollar_value, "$")
-            except: continue
+            except (ValueError, IndexError):
+                continue
 
         # ============ STRATEGY 4: Table Row Parsing ============
         # Handle markdown/text tables like: | AAPL | $150.25 | or AAPL\t$150.25
@@ -162,7 +165,8 @@ class ResponseValidator:
                             try:
                                 value = float(dollar_match.group(1).replace(',', ''))
                                 add_claim("dollar", ticker, value, "$")
-                            except: pass
+                            except (ValueError, IndexError):
+                                pass
                         
                         # Percentage
                         pct_match = re.search(r'([+-]?\d+(?:\.\d+)?)\s*%', cell)
@@ -170,7 +174,8 @@ class ResponseValidator:
                             try:
                                 value = float(pct_match.group(1))
                                 add_claim("percent", ticker, value, "%")
-                            except: pass
+                            except (ValueError, IndexError):
+                                pass
 
         # ============ STRATEGY 5: Named Metrics ============
         # Matches: Total Portfolio Impact -5.0%, Worst-Case VaR $2,250
@@ -188,7 +193,8 @@ class ResponseValidator:
                     value = float(match.group(1).replace(',', ''))
                     unit = "%" if claim_type == "percent" else "$"
                     add_claim(claim_type, key, value, unit)
-                except: continue
+                except (ValueError, IndexError):
+                    continue
 
         self.logger.debug(f"Validator: Extracted {len(claims)} total claims.")
         return claims
@@ -211,7 +217,7 @@ class ResponseValidator:
             if isinstance(msg, ToolMessage):
                 content = msg.content
                 try:
-                    data = json.loads(content)
+                    data = json.loads(str(content))
                     
                     if not isinstance(data, dict):
                         continue

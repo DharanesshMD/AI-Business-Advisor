@@ -5,6 +5,7 @@ Includes web search and regulation lookup capabilities using either Tavily or Pe
 
 import time
 import os
+import json
 from langchain_core.tools import tool
 from tavily import TavilyClient
 from perplexity import Perplexity
@@ -372,8 +373,6 @@ def search_domain_experts(
     logger.separator(f"DOMAIN EXPERT SEARCH: {topic}")
     
     try:
-        import json
-        
         # Build expert-focused search query
         query_parts = [f'"{topic}"']
         
@@ -695,7 +694,7 @@ def validate_stock_price(symbol: str) -> str:
             price = ticker.fast_info['last_price']
             currency = ticker.fast_info['currency']
             source = "fast_info"
-        except:
+        except (KeyError, AttributeError):
              # Fallback to history
             history = ticker.history(period="1d", interval="1m")
             if not history.empty:
