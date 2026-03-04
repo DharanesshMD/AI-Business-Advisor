@@ -6,6 +6,8 @@ Uses raw OpenAI SDK with NVIDIA NIM base_url for inference and tool calling.
 import json
 import time
 import os
+import re
+import asyncio
 from typing import TypedDict, Annotated, Sequence
 from openai import OpenAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
@@ -18,6 +20,7 @@ from backend.config import get_settings
 from backend.agents.tools import get_tools
 from backend.agents.advisor import get_system_prompt
 from backend.logger import get_logger
+from backend.agents.knowledge_graph import get_knowledge_graph_agent
 
 
 class AgentState(TypedDict):
@@ -92,6 +95,57 @@ def messages_to_openai_format(messages: list[BaseMessage]) -> list[dict]:
     return result
 
 
+def get_kg_context_sync(query: str) -> str:
+    """Extract tickers from query and fetch Knowledge Graph context synchronously."""
+    try:
+        # Simple extraction of likely stock tickers (1-5 uppercase letters)
+        # In a real app, an NER model would be better, but this handles direct mentions.
+        tickers = list(set(re.findall(r'\b[A-Z]{1,5}\b', query)))
+        
+        # Filter out common non-ticker acronyms
+        stop_words = {"WHAT", "HOW", "WHY", "WHO", "THE", "AND", "OR", "LLC", "INC", "CORP", "API", "ROI", "VAR"}
+        tickers = [t for t in tickers if t not in stop_words]
+        
+        if not tickers:
+            return ""
+            
+        kg_agent = get_knowledge_graph_agent()
+        
+        try:
+             loop = asyncio.get_event_loop()
+        except RuntimeError:
+             loop = asyncio.new_event_loop()
+             asyncio.set_event_loop(loop)
+             
+        contexts = []
+        for ticker in tickers[:3]: # Limit to 3 to avoid giant prompts
+            if loop.is_running():
+                future = asyncio.run_coroutine_threadsafe(kg_agent.get_company_context(ticker), loop)
+                context = future.result()
+            else:
+                context = loop.run_until_complete(kg_agent.get_company_context(ticker))
+                
+            if context and not context.get("error") and not context.get("message"):
+                # Format into readable string
+                parts = [f"\n--- Knowledge Graph Data for {ticker} ---"]
+                if context.get("name"):
+                    parts.append(f"Name: {context['name']}")
+                if context.get("sector"):
+                    parts.append(f"Sector: {context['sector']}")
+                if context.get("suppliers"):
+                    parts.append(f"Known Suppliers: {', '.join(context['suppliers'])}")
+                if context.get("risks"):
+                    risks = [f"- {r['category']}: {r['description'][:100]}..." for r in context['risks']]
+                    parts.append(f"Identified Risks:\n" + "\n".join(risks))
+                
+                contexts.append("\n".join(parts))
+                
+        return "\n".join(contexts) if contexts else ""
+    except Exception as e:
+        get_logger().error(f"KG Context extraction failed: {e}")
+        return ""
+
+
 def create_advisor_graph(location: str = "India", **kwargs):
     """
     Create the LangGraph workflow for the Business Advisor.
@@ -113,7 +167,20 @@ def create_advisor_graph(location: str = "India", **kwargs):
         logger.graph_step("agent", "start", "Preparing LLM call")
         
         messages = state["messages"]
-        openai_messages = [{"role": "system", "content": system_prompt}]
+        
+        # Extract KG context from the latest human message
+        kg_context = ""
+        for msg in reversed(messages):
+            if isinstance(msg, HumanMessage):
+                kg_context = get_kg_context_sync(msg.content)
+                break
+                
+        augmented_prompt = system_prompt
+        if kg_context:
+            augmented_prompt += f"\n\nAdditional Knowledge Graph Context:\n{kg_context}"
+            logger.debug(f"Injected Knowledge Graph context for prompt.")
+            
+        openai_messages = [{"role": "system", "content": augmented_prompt}]
         openai_messages.extend(messages_to_openai_format(messages))
         
         # Log the full prompt being sent
