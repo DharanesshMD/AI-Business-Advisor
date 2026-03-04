@@ -15,10 +15,12 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from backend.agents.graph import create_advisor_graph
 from backend.agents.tools import set_search_provider
 from backend.auth import get_current_user, get_current_user_ws
+from backend.cache import get_cached_response, set_cached_response
 from backend.config import get_settings
 import backend.db as db
 from backend.logger import get_logger
 from backend.models import ChatRequest, ChatResponse
+from backend.quotas import verify_chat_quota
 import backend.state as state
 
 router = APIRouter()
@@ -102,8 +104,8 @@ class _ThinkingCollector:
 
 @router.post("/api/chat", response_model=ChatResponse)
 @limiter.limit("10/minute")
-async def chat(request: Request, chat_req: ChatRequest, user: str = Depends(get_current_user)):
-    """Synchronous (non-streaming) chat endpoint."""
+async def chat(request: Request, chat_req: ChatRequest, user_id: str = Depends(verify_chat_quota)):
+    """Synchronous (non-streaming) chat endpoint with LLM response caching."""
     logger = get_logger()
     request_id = logger.new_request()
     location = chat_req.location or "India"
@@ -114,8 +116,17 @@ async def chat(request: Request, chat_req: ChatRequest, user: str = Depends(get_
     session_id = chat_req.session_id or str(id(chat_req))
     logger.debug(f"Session: {session_id}")
 
+    # Check cache for exact query match
+    cached = await get_cached_response(chat_req.message)
+    if cached:
+        logger.debug(f"Cache HIT - returning cached response")
+        return ChatResponse(
+            response=cached.get("content", ""),
+            session_id=session_id,
+        )
+
     try:
-        graph  = create_advisor_graph(location, checkpointer=state.checkpointer)
+        graph = create_advisor_graph(location, checkpointer=state.checkpointer)
         config = {"configurable": {"thread_id": session_id}}
         result = graph.invoke(
             {"messages": [HumanMessage(content=chat_req.message)], "location": location},
@@ -127,6 +138,10 @@ async def chat(request: Request, chat_req: ChatRequest, user: str = Depends(get_
             if isinstance(msg, AIMessage) and msg.content and not msg.tool_calls:
                 response = str(msg.content)
                 break
+
+        # Cache simple responses (no tool calls) for 1 hour
+        if response and not any(isinstance(m, ToolMessage) for m in result.get("messages", [])):
+            await set_cached_response(chat_req.message, {"content": response}, ttl_seconds=3600)
 
         # Persist to PostgreSQL (no-op if unavailable)
         await db.append_message(session_id, HumanMessage(content=chat_req.message))

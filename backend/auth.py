@@ -4,7 +4,7 @@ Secures endpoints via JWT if REQUIRE_AUTH is True.
 """
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Security, WebSocket, WebSocketException, status
+from fastapi import Depends, HTTPException, Request, Security, WebSocket, WebSocketException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
@@ -13,7 +13,7 @@ from backend.config import get_settings
 security = HTTPBearer(auto_error=False)
 
 
-def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Security(security)) -> Optional[str]:
+def get_current_user(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Security(security)) -> Optional[str]:
     """
     Validates the JWT token if authentication is enabled.
     Returns the user ID (subject) or raises 401.
@@ -22,6 +22,7 @@ def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Secur
     settings = get_settings()
     
     if not settings.REQUIRE_AUTH:
+        request.state.user_id = "anonymous"
         return "anonymous"
         
     if not credentials:
@@ -41,6 +42,8 @@ def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Secur
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token structure")
+            
+        request.state.user_id = user_id
         return user_id
     except JWTError:
         raise HTTPException(
@@ -56,6 +59,7 @@ async def get_current_user_ws(websocket: WebSocket) -> Optional[str]:
     """
     settings = get_settings()
     if not settings.REQUIRE_AUTH:
+        websocket.state.user_id = "anonymous"
         return "anonymous"
 
     # Try headers first (Sec-WebSocket-Protocol or Authorization)
@@ -80,6 +84,8 @@ async def get_current_user_ws(websocket: WebSocket) -> Optional[str]:
         user_id = payload.get("sub")
         if not user_id:
             raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token structure")
+            
+        websocket.state.user_id = user_id
         return user_id
     except JWTError:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token")

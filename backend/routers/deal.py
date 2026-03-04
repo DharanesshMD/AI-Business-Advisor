@@ -7,6 +7,7 @@ from backend.agents.deal import get_deal_agent
 from backend.auth import get_current_user
 from backend.logger import get_logger
 from backend.models import DealRequest
+from backend.quotas import verify_portfolio_quota
 import backend.state as state
 
 router = APIRouter()
@@ -15,7 +16,7 @@ limiter = state.limiter
 
 @router.post("/api/deal/analyze")
 @limiter.limit("5/minute")
-async def analyze_deal(request: Request, deal_req: DealRequest, user: str = Depends(get_current_user)):
+async def analyze_deal(request: Request, deal_req: DealRequest, user_id: str = Depends(verify_portfolio_quota)):
     """
     Run M&A deal intelligence analysis for a target company.
 

@@ -14,6 +14,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 
+import backend.cache as cache
 import backend.state as state
 import backend.db as db
 from backend.config import get_settings
@@ -26,8 +27,7 @@ from backend.routers import chat, deal, portfolio, validation
 # ---------------------------------------------------------------------------
 
 settings = get_settings()
-_DB_PATH  = "memory.sqlite"
-
+_DB_PATH = "memory.sqlite"
 
 # ---------------------------------------------------------------------------
 # Lifespan
@@ -38,11 +38,11 @@ async def lifespan(app: FastAPI):
     logger = get_logger()
     logger.separator("AI BUSINESS ADVISOR - STARTUP")
     logger.system(f"Version : {settings.APP_VERSION}")
-    logger.system(f"Model   : {settings.MODEL_NAME}")
-    logger.system(f"Debug   : {settings.DEBUG}")
+    logger.system(f"Model : {settings.MODEL_NAME}")
+    logger.system(f"Debug : {settings.DEBUG}")
 
     try:
-        state.db_conn      = sqlite3.connect(_DB_PATH, check_same_thread=False)
+        state.db_conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
         state.checkpointer = SqliteSaver(state.db_conn)
         state.checkpointer.setup()
         logger.system(f"SQLite checkpointer ready at {_DB_PATH}")
@@ -56,6 +56,14 @@ async def lifespan(app: FastAPI):
     else:
         logger.system("PostgreSQL unavailable — using in-memory history only.")
 
+    # Initialise Redis cache (non-fatal if unavailable)
+    await cache.init_redis()
+    cache_status = await cache.get_cache_stats()
+    if cache_status.get("enabled"):
+        logger.system(f"Redis cache ready — {cache_status.get('total_keys', 0)} cached entries")
+    else:
+        logger.system("Redis unavailable — caching disabled")
+
     yield
 
     logger.separator("AI BUSINESS ADVISOR - SHUTDOWN")
@@ -65,8 +73,8 @@ async def lifespan(app: FastAPI):
         state.db_conn.close()
         logger.system("SQLite connection closed.")
     await db.close_pool()
+    await cache.close_redis()
     logger.system("Goodbye!")
-
 
 # ---------------------------------------------------------------------------
 # App
@@ -99,7 +107,6 @@ app.include_router(deal.router)
 app.include_router(portfolio.router)
 app.include_router(validation.router)
 
-
 # ---------------------------------------------------------------------------
 # Core routes
 # ---------------------------------------------------------------------------
@@ -108,7 +115,6 @@ app.include_router(validation.router)
 async def serve_frontend():
     return FileResponse("frontend/index.html")
 
-
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     return HealthResponse(
@@ -116,7 +122,6 @@ async def health_check():
         version=settings.APP_VERSION,
         model=settings.MODEL_NAME,
     )
-
 
 # Mount static files (non-fatal if frontend dir is absent)
 try:

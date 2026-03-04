@@ -12,6 +12,7 @@ def client():
     with (
         patch("backend.state.checkpointer", None),
         patch("backend.state.db_conn", None),
+        patch("backend.quotas.check_quota", return_value=True),
     ):
         from fastapi.testclient import TestClient
         from backend.main import app
