@@ -20,7 +20,7 @@ services:
     volumes:
       # Mount code for development (hot reload)
       - ./backend:/app/backend:ro
-      - ./frontend:/app/frontend:ro
+      - ./frontend-react:/app/frontend-react:ro
     restart: unless-stopped
     depends_on:
       - redis
