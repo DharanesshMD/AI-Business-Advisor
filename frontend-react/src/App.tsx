@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, TrendingUp, AlertTriangle, MessageSquare, Briefcase, Activity } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function App() {
   const [messages, setMessages] = useState<{role: string, content: string}[]>([]);
