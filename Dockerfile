@@ -34,7 +34,7 @@ RUN npm install && npm run build
 WORKDIR /app
 
 # Copy built frontend to expected location
-RUN cp -r frontend-react/dist/* frontend/
+RUN mkdir -p frontend && cp -r frontend-react/dist/* frontend/
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash appuser && \
