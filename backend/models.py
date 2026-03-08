@@ -158,3 +158,96 @@ class DealRequest(BaseModel):
                 raise ValueError(f"peer symbol '{sym}' must be 1–10 uppercase ASCII letters only")
             cleaned.append(sym)
         return cleaned
+
+
+# ---------------------------------------------------------------------------
+# Audit Analyst
+# ---------------------------------------------------------------------------
+
+class AuditRiskRequest(BaseModel):
+    """Audit risk assessment request."""
+
+    total_revenue: Optional[float] = Field(
+        None, ge=0, description="Company's total revenue"
+    )
+    total_assets: Optional[float] = Field(
+        None, ge=0, description="Company's total assets"
+    )
+    pre_tax_income: Optional[float] = Field(
+        None, description="Company's pre-tax income (can be negative)"
+    )
+    gross_profit: Optional[float] = Field(
+        None, description="Company's gross profit"
+    )
+    inherent_risk: str = Field(
+        "medium", description="Inherent risk level: high, medium, or low"
+    )
+    control_risk: str = Field(
+        "medium", description="Control risk level: high, medium, or low"
+    )
+    industry: Optional[str] = Field(
+        None, max_length=100, description="Industry of the company"
+    )
+    is_public_company: bool = Field(
+        False, description="Whether the company is publicly listed"
+    )
+
+    @field_validator("inherent_risk", "control_risk")
+    @classmethod
+    def validate_risk_level(cls, v: str) -> str:
+        v = v.strip().lower()
+        if v not in ("high", "medium", "low"):
+            raise ValueError("Risk level must be 'high', 'medium', or 'low'")
+        return v
+
+
+class AuditDataRequest(BaseModel):
+    """Audit data analytics request."""
+
+    csv_data: str = Field(
+        ..., min_length=10, max_length=500_000,
+        description="CSV data as text (max ~500KB)"
+    )
+    analysis_type: str = Field(
+        "full",
+        description="Analysis type: full, duplicates, benford, gaps, aging, sample, journal_entries, three_way_match"
+    )
+    column_config: Optional[Dict[str, str]] = Field(
+        None,
+        description="Optional column configuration: {column, amount_column, date_column, id_column}"
+    )
+
+    @field_validator("analysis_type")
+    @classmethod
+    def validate_analysis_type(cls, v: str) -> str:
+        v = v.strip().lower()
+        valid = {"full", "duplicates", "benford", "gaps", "aging", "sample", "journal_entries", "three_way_match"}
+        if v not in valid:
+            raise ValueError(f"analysis_type must be one of: {', '.join(sorted(valid))}")
+        return v
+
+
+class AuditProgramRequest(BaseModel):
+    """Audit program generation request."""
+
+    audit_area: str = Field(
+        ..., min_length=2, max_length=200,
+        description="Audit area (e.g., 'revenue recognition', 'accounts payable')"
+    )
+    industry: Optional[str] = Field(
+        None, max_length=100, description="Industry context"
+    )
+    is_sox: bool = Field(
+        False, description="Include SOX 404 procedures"
+    )
+    risk_level: str = Field(
+        "medium", description="Risk level: high, medium, or low"
+    )
+
+    @field_validator("risk_level")
+    @classmethod
+    def validate_risk_level(cls, v: str) -> str:
+        v = v.strip().lower()
+        if v not in ("high", "medium", "low"):
+            raise ValueError("Risk level must be 'high', 'medium', or 'low'")
+        return v

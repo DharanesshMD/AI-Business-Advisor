@@ -877,6 +877,396 @@ def list_stress_scenarios() -> str:
         return f"Error: {str(e)}"
 
 
+@tool
+def audit_risk_assessment(
+    inherent_risk: str,
+    control_risk: str,
+    total_revenue: Optional[float] = None,
+    total_assets: Optional[float] = None,
+    pre_tax_income: Optional[float] = None,
+    gross_profit: Optional[float] = None,
+    industry: Optional[str] = None,
+    is_public_company: bool = False,
+) -> str:
+    """
+    Compute audit risk assessment and performance materiality.
+
+    Uses the audit risk model: Audit Risk = Inherent Risk × Control Risk × Detection Risk.
+    Also calculates materiality using standard benchmarks (5% pre-tax income, 0.5% revenue,
+    1% total assets, 2% gross profit).
+
+    Use this tool when the user asks about:
+    - Planning an audit engagement
+    - Setting materiality levels
+    - Assessing audit risk
+    - Determining the audit approach (substantive vs controls-reliance)
+
+    Args:
+        inherent_risk: Level of inherent risk — "high", "medium", or "low"
+        control_risk: Level of control risk — "high", "medium", or "low"
+        total_revenue: Company's total revenue (optional, for materiality)
+        total_assets: Company's total assets (optional, for materiality)
+        pre_tax_income: Company's pre-tax income (optional, for materiality)
+        gross_profit: Company's gross profit (optional, for materiality)
+        industry: Industry of the company (optional context)
+        is_public_company: Whether the company is publicly listed (triggers SOX considerations)
+
+    Returns:
+        JSON with risk matrix, materiality calculations, and audit approach recommendations.
+    """
+    logger = get_logger()
+    logger.separator("AUDIT RISK ASSESSMENT")
+
+    try:
+        import asyncio
+        from backend.agents.audit import get_audit_agent
+
+        agent = get_audit_agent()
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(
+                agent.assess_audit_risk(
+                    total_revenue=total_revenue,
+                    total_assets=total_assets,
+                    pre_tax_income=pre_tax_income,
+                    gross_profit=gross_profit,
+                    inherent_risk=inherent_risk,
+                    control_risk=control_risk,
+                    industry=industry,
+                    is_public_company=is_public_company,
+                ), loop
+            )
+            result = future.result()
+        else:
+            result = loop.run_until_complete(
+                agent.assess_audit_risk(
+                    total_revenue=total_revenue,
+                    total_assets=total_assets,
+                    pre_tax_income=pre_tax_income,
+                    gross_profit=gross_profit,
+                    inherent_risk=inherent_risk,
+                    control_risk=control_risk,
+                    industry=industry,
+                    is_public_company=is_public_company,
+                )
+            )
+
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error("Audit risk assessment error", e)
+        return f"Error assessing audit risk: {str(e)}"
+
+
+@tool
+def generate_audit_program(
+    audit_area: str,
+    risk_level: str = "medium",
+    industry: Optional[str] = None,
+    is_sox: bool = False,
+) -> str:
+    """
+    Generate a structured audit program with objectives, assertions, and procedures.
+
+    Covers major audit areas: revenue recognition, accounts receivable, accounts payable,
+    inventory, fixed assets, payroll, and cash. Also generates programs for custom areas.
+
+    Use this tool when the user asks about:
+    - Audit procedures for a specific area
+    - Creating an audit work program
+    - Audit checklists or testing plans
+    - What to test in an audit
+
+    Args:
+        audit_area: The area to audit (e.g., "revenue recognition", "accounts payable", "inventory")
+        risk_level: Risk level — "high", "medium", or "low" (affects procedure selection)
+        industry: Industry context (optional)
+        is_sox: Whether SOX 404 procedures should be included
+
+    Returns:
+        JSON with audit objectives, key assertions, detailed procedures, and sample size guidance.
+    """
+    logger = get_logger()
+    logger.separator(f"GENERATE AUDIT PROGRAM: {audit_area}")
+
+    try:
+        import asyncio
+        from backend.agents.audit import get_audit_agent
+
+        agent = get_audit_agent()
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(
+                agent.generate_audit_program(audit_area, industry, is_sox, risk_level), loop
+            )
+            result = future.result()
+        else:
+            result = loop.run_until_complete(
+                agent.generate_audit_program(audit_area, industry, is_sox, risk_level)
+            )
+
+        return json.dumps(result, indent=2, default=str)
+    except Exception as e:
+        logger.error("Audit program generation error", e)
+        return f"Error generating audit program: {str(e)}"
+
+
+@tool
+def evaluate_controls(
+    control_environment: str = "medium",
+    risk_assessment: str = "medium",
+    control_activities: str = "medium",
+    information_communication: str = "medium",
+    monitoring: str = "medium",
+    description: Optional[str] = None,
+) -> str:
+    """
+    Evaluate internal controls using the COSO 2013 framework.
+
+    Assesses five components: Control Environment, Risk Assessment, Control Activities,
+    Information & Communication, and Monitoring Activities. Returns effectiveness ratings
+    and recommendations for improvement.
+
+    Use this tool when the user asks about:
+    - Internal control evaluation
+    - COSO framework assessment
+    - SOX compliance readiness
+    - Control weaknesses or deficiencies
+
+    Args:
+        control_environment: Rating for tone at the top, ethics, governance — "high", "medium", or "low"
+        risk_assessment: Rating for how well risks are identified and managed — "high", "medium", or "low"
+        control_activities: Rating for authorization, segregation, reconciliation controls — "high", "medium", or "low"
+        information_communication: Rating for IT systems, reporting, and communication — "high", "medium", or "low"
+        monitoring: Rating for ongoing monitoring and periodic evaluations — "high", "medium", or "low"
+        description: Optional description of the entity's control environment
+
+    Returns:
+        JSON with component ratings, overall assessment, and specific recommendations.
+    """
+    logger = get_logger()
+    logger.separator("EVALUATE INTERNAL CONTROLS (COSO)")
+
+    try:
+        import asyncio
+        from backend.agents.audit import get_audit_agent
+
+        agent = get_audit_agent()
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(
+                agent.evaluate_internal_controls(
+                    control_environment, risk_assessment, control_activities,
+                    information_communication, monitoring, description,
+                ), loop
+            )
+            result = future.result()
+        else:
+            result = loop.run_until_complete(
+                agent.evaluate_internal_controls(
+                    control_environment, risk_assessment, control_activities,
+                    information_communication, monitoring, description,
+                )
+            )
+
+        return json.dumps(result, indent=2, default=str)
+    except Exception as e:
+        logger.error("Controls evaluation error", e)
+        return f"Error evaluating controls: {str(e)}"
+
+
+@tool
+def analyze_audit_data(
+    csv_data: str,
+    analysis_type: str = "full",
+    column: Optional[str] = None,
+    amount_column: Optional[str] = None,
+    date_column: Optional[str] = None,
+) -> str:
+    """
+    Run audit data analytics on CSV data. Supports multiple analysis types.
+
+    Available analysis types:
+    - "full": Complete dataset profiling with anomaly detection
+    - "duplicates": Find duplicate records
+    - "benford": Benford's Law first-digit analysis for fraud detection
+    - "gaps": Detect gaps in sequential numbers (invoice, check numbers)
+    - "aging": Aging analysis for AR/AP (requires date and amount columns)
+    - "sample": Statistical stratified sampling
+    - "journal_entries": Journal entry testing for risk indicators
+    - "three_way_match": PO/Invoice/Receipt matching
+
+    Use this tool when the user:
+    - Provides financial data (CSV format) for analysis
+    - Asks for anomaly or fraud detection
+    - Needs audit sampling
+    - Wants aging or duplicate analysis
+    - Asks about Benford's Law testing
+
+    Args:
+        csv_data: The CSV data as a text string (with headers)
+        analysis_type: Type of analysis — "full", "duplicates", "benford", "gaps", "aging", "sample", "journal_entries", "three_way_match"
+        column: Target column name for benford/gaps analysis
+        amount_column: Column containing monetary amounts
+        date_column: Column containing dates (for aging/journal entry analysis)
+
+    Returns:
+        JSON with analysis results, risk assessments, and flagged items.
+    """
+    logger = get_logger()
+    logger.separator(f"AUDIT DATA ANALYSIS: {analysis_type}")
+
+    try:
+        import asyncio
+        from backend.agents.audit_data import get_audit_data_engine
+
+        engine = get_audit_data_engine()
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        # Route to appropriate analysis method
+        analysis_map = {
+            "full": lambda: engine.analyze_dataset(csv_data, amount_column),
+            "duplicates": lambda: engine.detect_duplicates(csv_data),
+            "benford": lambda: engine.benford_analysis(csv_data, column or amount_column or "amount"),
+            "gaps": lambda: engine.gap_analysis(csv_data, column or "invoice_number"),
+            "aging": lambda: engine.aging_analysis(csv_data, date_column or "date", amount_column or "amount"),
+            "sample": lambda: engine.stratified_sample(csv_data, amount_column or "amount"),
+            "journal_entries": lambda: engine.journal_entry_testing(csv_data, amount_column or "amount", date_column or "date"),
+            "three_way_match": lambda: engine.three_way_match(csv_data),
+        }
+
+        coro_fn = analysis_map.get(analysis_type.lower(), analysis_map["full"])
+
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(coro_fn(), loop)
+            result = future.result()
+        else:
+            result = loop.run_until_complete(coro_fn())
+
+        return json.dumps(result, indent=2, default=str)
+    except Exception as e:
+        logger.error(f"Audit data analysis error ({analysis_type})", e)
+        return f"Error analyzing data: {str(e)}"
+
+
+@tool
+def search_audit_standards(query: str, standard_type: Optional[str] = None) -> str:
+    """
+    Search for auditing standards, regulations, and best practices.
+
+    Searches for ISA (International Standards on Auditing), GAAS, IIA Standards,
+    PCAOB standards, SOX requirements, and other audit-related regulatory guidance.
+
+    Use this tool when the user asks about:
+    - Auditing standards (ISA, GAAS, PCAOB)
+    - Internal audit standards (IIA IPPF)
+    - SOX compliance requirements
+    - Audit regulatory guidance
+    - Best practices in auditing
+
+    Args:
+        query: The audit standards topic to search for
+        standard_type: Optional filter — "ISA", "GAAS", "IIA", "PCAOB", "SOX", or None for all
+
+    Returns:
+        Search results with relevant standards information and sources.
+    """
+    logger = get_logger()
+    logger.separator(f"AUDIT STANDARDS SEARCH: {query}")
+
+    # Enhance query with audit context
+    search_query = f"auditing standards {query}"
+    if standard_type:
+        search_query = f"{standard_type} {search_query}"
+    search_query += " official guidance requirements"
+
+    # Reuse existing web search infrastructure
+    return web_search.invoke({"query": search_query, "max_results": 5})
+
+
+@tool
+def generate_audit_finding(
+    condition: str,
+    criteria: str,
+    cause: Optional[str] = None,
+    effect: Optional[str] = None,
+    audit_area: Optional[str] = None,
+) -> str:
+    """
+    Generate a structured audit finding in the standard Condition/Criteria/Cause/Effect format.
+
+    Creates a formal audit finding with severity assessment, recommendations,
+    and management response placeholders.
+
+    Use this tool when the user:
+    - Describes an audit issue that needs to be documented
+    - Wants to format a finding for an audit report
+    - Needs help writing audit observations
+    - Asks about audit finding structure
+
+    Args:
+        condition: What was found (the actual state/problem observed)
+        criteria: What should have been (the standard, policy, or requirement)
+        cause: Why it happened (root cause, if known)
+        effect: What is the impact (financial, operational, compliance)
+        audit_area: The audit area this finding relates to (optional)
+
+    Returns:
+        JSON with structured finding including severity, recommendation, and status.
+    """
+    logger = get_logger()
+    logger.separator("GENERATE AUDIT FINDING")
+
+    try:
+        import asyncio
+        from backend.agents.audit import get_audit_agent
+
+        agent = get_audit_agent()
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(
+                agent.generate_audit_finding(condition, criteria, cause, effect, audit_area), loop
+            )
+            result = future.result()
+        else:
+            result = loop.run_until_complete(
+                agent.generate_audit_finding(condition, criteria, cause, effect, audit_area)
+            )
+
+        return json.dumps(result, indent=2, default=str)
+    except Exception as e:
+        logger.error("Audit finding generation error", e)
+        return f"Error generating audit finding: {str(e)}"
+
+
 def get_tools() -> list:
     """Get all available tools for the advisor agent."""
     logger = get_logger()
@@ -891,7 +1281,14 @@ def get_tools() -> list:
         validate_stock_price,
         query_knowledge_graph,
         run_stress_test,
-        list_stress_scenarios
+        list_stress_scenarios,
+        # Audit Analyst tools
+        audit_risk_assessment,
+        generate_audit_program,
+        evaluate_controls,
+        analyze_audit_data,
+        search_audit_standards,
+        generate_audit_finding,
     ]
     logger.system(f"Loading {len(tools)} tools: {[t.name for t in tools]}")
     return tools

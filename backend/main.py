@@ -20,7 +20,7 @@ import backend.db as db
 from backend.config import get_settings
 from backend.logger import get_logger
 from backend.models import HealthResponse
-from backend.routers import chat, deal, portfolio, validation
+from backend.routers import audit, chat, deal, portfolio, validation
 
 # ---------------------------------------------------------------------------
 # Config
@@ -102,6 +102,7 @@ app.add_middleware(
 # Routers
 # ---------------------------------------------------------------------------
 
+app.include_router(audit.router)
 app.include_router(chat.router)
 app.include_router(deal.router)
 app.include_router(portfolio.router)
