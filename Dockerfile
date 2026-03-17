@@ -34,6 +34,9 @@ RUN npm install && npm run build
 # Go back to app root
 WORKDIR /app
 
+# Copy the backend code
+COPY backend/ ./backend/
+
 # Copy built frontend to expected location
 RUN mkdir -p frontend && cp -r frontend-react/dist/* frontend/
 
