@@ -8,7 +8,7 @@ import os
 import json
 from langchain_core.tools import tool
 from tavily import TavilyClient
-from perplexity import Perplexity
+import openai
 from typing import Optional
 from dotenv import load_dotenv
 from contextvars import ContextVar
@@ -160,22 +160,32 @@ def _web_search_perplexity(query: str, max_results: int) -> str:
         start_time = time.time()
         client = get_perplexity_client()
         
-        response = client.search.create(query=query, max_results=max_results)
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are an artificial intelligence assistant and you need to "
+                    "engage in a helpful, detailed, polite conversation with a user."
+                ),
+            },
+            {
+                "role": "user",
+                "content": query,
+            },
+        ]
+
+        response = client.chat.completions.create(
+            model="sonar-pro",
+            messages=messages,
+        )
         
         duration_ms = (time.time() - start_time) * 1000
-        results = list(response.results)
         
         logger.api_response("Perplexity", 200, duration_ms)
-        logger.debug(f"Perplexity returned {len(results)} results")
         
+        # Perplexity API returns citations and markdown text
         formatted_results = ["**Sources:**"]
-        for i, result in enumerate(results, 1):
-            title = getattr(result, 'title', 'No title')
-            url = getattr(result, 'url', '')
-            snippet = getattr(result, 'snippet', '')
-            date = getattr(result, 'date', '')
-            date_str = f" ({date})" if date else ""
-            formatted_results.append(f"\n{i}. **{title}**{date_str}\n   URL: {url}\n   {snippet}")
+        formatted_results.append(response.choices[0].message.content)
         
         return "\n".join(formatted_results)
     
@@ -320,20 +330,31 @@ def _search_regulations_perplexity(topic: str, location: str, regulation_type: O
         start_time = time.time()
         client = get_perplexity_client()
         
-        response = client.search.create(query=query, max_results=5)
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are an artificial intelligence assistant and you need to "
+                    "engage in a helpful, detailed, polite conversation with a user."
+                ),
+            },
+            {
+                "role": "user",
+                "content": query,
+            },
+        ]
+
+        response = client.chat.completions.create(
+            model="sonar-pro",
+            messages=messages,
+        )
         
         duration_ms = (time.time() - start_time) * 1000
-        results = list(response.results)
         logger.api_response("Perplexity", 200, duration_ms)
         
         formatted_results = [f"**Regulatory Information for {topic} in {location}:**\n"]
         formatted_results.append("**Official Sources & Requirements:**")
-        
-        for i, result in enumerate(results, 1):
-            title = getattr(result, 'title', 'No title')
-            url = getattr(result, 'url', '')
-            snippet = getattr(result, 'snippet', '')
-            formatted_results.append(f"\n{i}. **{title}**\n   Source: {url}\n   {snippet}")
+        formatted_results.append(response.choices[0].message.content)
             
         formatted_results.append("\n\n⚠️ *Note: Regulations change frequently.*")
         return "\n".join(formatted_results)
@@ -394,14 +415,30 @@ def search_domain_experts(
         # Use Tavily or Perplexity based on provider
         if provider and provider.lower() == "perplexity":
             client = get_perplexity_client()
-            response = client.search.create(query=query, max_results=max_results)
-            raw_results = []
-            for result in response.results:
-                raw_results.append({
-                    "title": getattr(result, 'title', ''),
-                    "url": getattr(result, 'url', ''),
-                    "content": getattr(result, 'snippet', '')
-                })
+            
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an artificial intelligence assistant and you need to "
+                        "engage in a helpful, detailed, polite conversation with a user."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": query,
+                },
+            ]
+
+            response = client.chat.completions.create(
+                model="sonar-pro",
+                messages=messages,
+            )
+            raw_results = [{
+                "title": "Perplexity Search Result",
+                "url": "",
+                "content": response.choices[0].message.content
+            }]
         else:
             client = get_tavily_client()
             response = client.search(

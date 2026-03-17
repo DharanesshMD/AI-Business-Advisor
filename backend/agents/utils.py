@@ -4,9 +4,9 @@ Utility functions for AI Agents.
 import os
 from contextvars import ContextVar
 from tavily import TavilyClient
-from perplexity import Perplexity
 from backend.logger import get_logger
 from dotenv import load_dotenv
+import openai
 
 load_dotenv()
 
@@ -32,12 +32,12 @@ def get_tavily_client() -> TavilyClient:
     logger.debug(f"Tavily API Key loaded (length: {len(api_key)})")
     return TavilyClient(api_key=api_key)
 
-def get_perplexity_client() -> Perplexity:
-    """Get Perplexity client instance."""
+def get_perplexity_client() -> openai.OpenAI:
+    """Get Perplexity client instance (via OpenAI SDK)."""
     logger = get_logger()
     api_key = os.getenv("SONAR_API_KEY", "")
     if not api_key:
         logger.error("SONAR_API_KEY environment variable is required")
         raise ValueError("SONAR_API_KEY environment variable is required")
     logger.debug(f"Perplexity API Key loaded (length: {len(api_key)})")
-    return Perplexity(api_key=api_key)
+    return openai.OpenAI(api_key=api_key, base_url="https://api.perplexity.ai")
