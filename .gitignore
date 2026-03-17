@@ -72,6 +72,8 @@ Thumbs.db
 # Project specific
 *.log
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
 memory.sqlite
 .env.local
 .env.*.local

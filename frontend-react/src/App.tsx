@@ -1,5 +1,82 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, TrendingUp, AlertTriangle, MessageSquare, Briefcase, Activity } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+function MessageBubble({ msg }: { msg: { role: string; content: string } }) {
+  const content = msg.content || '';
+  const thinkMatch = content.match(/<think>([\s\S]*?)(?:<\/think>|$)/);
+
+  let thinkContent = null;
+  let actualContent = content;
+  let isThinking = false;
+
+  if (thinkMatch) {
+    isThinking = !content.includes('</think>');
+    thinkContent = thinkMatch[1].trim();
+    actualContent = content.replace(/<think>[\s\S]*?(?:<\/think>|$)/g, '').trim();
+  }
+
+  const [isExpanded, setIsExpanded] = useState(() => {
+    if (!thinkMatch) return false;
+    return isThinking;
+  });
+
+  // Auto-collapse when thinking finishes
+  const wasThinking = useRef(isThinking);
+  useEffect(() => {
+    if (wasThinking.current && !isThinking) {
+      setIsExpanded(false);
+    }
+    wasThinking.current = isThinking;
+  }, [isThinking]);
+
+  if (msg.role === 'user') {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-3xl rounded-2xl p-4 bg-blue-600 text-white shadow-sm">
+          <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-3xl min-w-[50%] rounded-2xl p-5 bg-gray-800 text-gray-200 shadow-sm border border-gray-700 flex flex-col gap-4">
+        {thinkContent !== null && (
+          <div className="bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
+            <button 
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-800 transition-colors border-b border-transparent hover:border-gray-700"
+            >
+              <div className="flex items-center gap-2 text-indigo-400 text-sm font-semibold">
+                <Activity size={16} className={isThinking ? 'animate-pulse text-indigo-500' : ''} />
+                {isThinking ? 'ARIA is thinking...' : 'Thought Process'}
+              </div>
+              <span className="text-gray-500 text-xs font-medium uppercase tracking-wider">
+                {isExpanded ? 'Hide' : 'Show'}
+              </span>
+            </button>
+            {isExpanded && (
+              <div className={`px-4 pb-4 pt-2 text-gray-400 text-sm whitespace-pre-wrap border-t border-gray-700/50 ${isThinking ? 'animate-pulse' : ''}`}>
+                {thinkContent || 'Starting thought process...'}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {actualContent && (
+          <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-gray-900 prose-pre:border prose-pre:border-gray-700">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {actualContent}
+            </ReactMarkdown>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [messages, setMessages] = useState<{role: string, content: string}[]>([]);
@@ -19,7 +96,11 @@ export default function App() {
         setMessages(prev => {
           const newMsgs = [...prev];
           if (newMsgs.length > 0 && newMsgs[newMsgs.length - 1].role === 'assistant') {
-            newMsgs[newMsgs.length - 1].content += data.content;
+            const lastMsg = newMsgs[newMsgs.length - 1];
+            newMsgs[newMsgs.length - 1] = {
+              ...lastMsg,
+              content: lastMsg.content + data.content
+            };
           } else {
             newMsgs.push({ role: 'assistant', content: data.content });
           }
@@ -109,11 +190,7 @@ export default function App() {
             {/* Chat Area */}
             <div className="flex-1 p-6 overflow-y-auto space-y-6">
               {messages.map((msg, idx) => (
-                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-3xl rounded-2xl p-4 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
-                  </div>
-                </div>
+                <MessageBubble key={idx} msg={msg} />
               ))}
               <div ref={chatEndRef} />
             </div>
