@@ -8,8 +8,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from langgraph.checkpoint.sqlite import SqliteSaver
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
@@ -112,9 +110,9 @@ app.include_router(validation.router)
 # Core routes
 # ---------------------------------------------------------------------------
 
-@app.get("/", response_class=FileResponse)
-async def serve_frontend():
-    return FileResponse("frontend/index.html")
+@app.get("/")
+async def root():
+    return {"status": "AI Business Advisor API is running"}
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -124,11 +122,7 @@ async def health_check():
         model=settings.MODEL_NAME,
     )
 
-# Mount static files (non-fatal if frontend dir is absent)
-try:
-    app.mount("/static", StaticFiles(directory="frontend"), name="static")
-except Exception:
-    pass
+
 
 
 # ---------------------------------------------------------------------------
