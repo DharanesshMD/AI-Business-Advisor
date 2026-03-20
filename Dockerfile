@@ -16,8 +16,6 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    nodejs \
-    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -26,19 +24,12 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy frontend-react and build it
-COPY frontend-react/ ./frontend-react/
-WORKDIR /app/frontend-react
-RUN npm install && npm run build
 
-# Go back to app root
-WORKDIR /app
 
 # Copy the backend code
 COPY backend/ ./backend/
 
-# Copy built frontend to expected location
-RUN mkdir -p frontend && cp -r frontend-react/dist/* frontend/
+
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash appuser && \
