@@ -111,10 +111,12 @@ app.include_router(validation.router)
 # ---------------------------------------------------------------------------
 
 @app.get("/")
+@app.head("/")
 async def root():
     return {"status": "AI Business Advisor API is running"}
 
 @app.get("/health", response_model=HealthResponse)
+@app.head("/health", response_model=HealthResponse)
 async def health_check():
     return HealthResponse(
         status="healthy",
