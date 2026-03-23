@@ -8,8 +8,8 @@
 // =============================================================================
 
 const CONFIG = {
-    // WebSocket URL - auto-detect protocol
-    WS_URL: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/chat`,
+    // WebSocket URL - auto-detect protocol based on current origin
+    WS_URL: (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + '/ws/chat',
     // Reconnection settings
     RECONNECT_DELAY: 3000,
     MAX_RECONNECT_ATTEMPTS: 5,

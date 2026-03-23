@@ -96,7 +96,7 @@ body {
     color: var(--color-text-primary);
     line-height: 1.6;
     min-height: 100vh;
-    overflow: hidden;
+    overflow: auto;
 }
 
 /* App Container */
@@ -313,7 +313,8 @@ body {
    Chat Container
    ========================================================================== */
 .chat-container {
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     padding: var(--space-xl);
     scroll-behavior: smooth;

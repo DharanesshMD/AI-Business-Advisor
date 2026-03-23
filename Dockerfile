@@ -29,6 +29,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the backend code
 COPY backend/ ./backend/
 
+# Copy the frontend code to serve UI
+COPY frontend/ ./frontend/
+
 
 
 # Create non-root user for security
@@ -36,12 +39,12 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     chown -R appuser:appuser /app
 USER appuser
 
-# Expose port
+# Expose default port
 EXPOSE 8000
 
-# Health check
+# Health check (supports dynamic PORT variable provided by Render)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-# Run the application
-CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application (supports dynamic PORT variable provided by Render)
+CMD python -m uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}

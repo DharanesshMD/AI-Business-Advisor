@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "your-super-secret-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"
 
+    # Scrapling Deep Scraping
+    SCRAPLING_ENABLED: bool = True
+    SCRAPLING_MAX_CONCURRENT: int = 4
+    SCRAPLING_TIMEOUT_SECONDS: int = 15
+    SCRAPLING_CACHE_TTL: int = 7200          # Page-level cache: 2 hours
+    SCRAPLING_QUERY_CACHE_TTL: int = 1800    # Query-level cache: 30 minutes
+    SCRAPLING_MAX_CONTENT_LENGTH: int = 5000  # Max chars per scraped page
+
     # Database & Cache
     POSTGRES_URI: str = "postgresql://advisor:advisor_password@localhost:5432/ai_advisor"
     REDIS_URI: str = "redis://localhost:6379/0"

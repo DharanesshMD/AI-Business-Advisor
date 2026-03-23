@@ -37,6 +37,7 @@ _CATEGORY_MAP = {
     "api_call":             {"icon": "🌐",  "label": "Connecting to AI"},
     "tool_decision":        {"icon": "🔍",  "label": "Deciding to Search"},
     "tool_start":           {"icon": "🔎",  "label": "Searching Web"},
+    "scraping":             {"icon": "🕷️",  "label": "Deep Scraping Web"},
     "tool_end":             {"icon": "✅",  "label": "Search Complete"},
     "response_received":    {"icon": "💬",  "label": "Processing Response"},
     "response_generation":  {"icon": "✍️",  "label": "Generating Answer"},
@@ -207,7 +208,7 @@ async def websocket_chat(websocket: WebSocket, user: str = Depends(get_current_u
             user_message    = str(data.get("content", "")).strip()
             location        = str(data.get("location", "India"))[:100]
             search_provider = str(data.get("search_provider", "tavily"))
-            if search_provider not in {"tavily", "perplexity", "duckduckgo", "auto"}:
+            if search_provider not in {"tavily", "perplexity", "duckduckgo", "scrapling", "auto"}:
                 search_provider = "tavily"
 
             if not user_message:

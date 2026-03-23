@@ -56,61 +56,77 @@ def web_search(query: str, max_results: int = 5) -> str:
         return _web_search_perplexity(query, max_results)
     elif provider and provider.lower() == "duckduckgo":
         return _web_search_duckduckgo(query, max_results)
+    elif provider and provider.lower() == "scrapling":
+        return _web_search_scrapling(query, max_results)
     else:
         return _web_search_tavily(query, max_results)
 
 
 def _web_search_auto(query: str, max_results: int) -> str:
-    """Query all 3 search providers in parallel and combine results."""
+    """Query all 4 search providers in parallel and combine results.
+    Uses as_completed with 5s timeout so scrapling doesn't block fast providers."""
     import concurrent.futures
     logger = get_logger()
-    logger.separator(f"WEB SEARCH (AUTO - All 3 Providers): {query}")
-    
+    logger.separator(f"WEB SEARCH (AUTO - All 4 Providers): {query}")
+
     start_time = time.time()
-    
+
     def search_tavily():
         try:
             return ("tavily", _web_search_tavily(query, max_results))
         except Exception as e:
             return ("tavily", f"Error: {str(e)}")
-    
+
     def search_perplexity():
         try:
             return ("perplexity", _web_search_perplexity(query, max_results))
         except Exception as e:
             return ("perplexity", f"Error: {str(e)}")
-    
+
     def search_duckduckgo():
         try:
             return ("duckduckgo", _web_search_duckduckgo(query, max_results))
         except Exception as e:
             return ("duckduckgo", f"Error: {str(e)}")
-    
-    # Run all 3 searches in parallel
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+
+    def search_scrapling():
+        try:
+            return ("scrapling", _web_search_scrapling(query, max_results))
+        except Exception as e:
+            return ("scrapling", f"Error: {str(e)}")
+
+    # Run all 4 searches in parallel with as_completed + timeout
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         futures = [
             executor.submit(search_tavily),
             executor.submit(search_perplexity),
-            executor.submit(search_duckduckgo)
+            executor.submit(search_duckduckgo),
+            executor.submit(search_scrapling),
         ]
-        results = [f.result() for f in concurrent.futures.as_completed(futures)]
-    
+        # Use as_completed with 5s timeout — scrapling may be slower
+        for future in concurrent.futures.as_completed(futures, timeout=15):
+            try:
+                results.append(future.result(timeout=5))
+            except (concurrent.futures.TimeoutError, Exception) as e:
+                logger.debug(f"Auto mode: a provider timed out or errored: {e}")
+
     duration_ms = (time.time() - start_time) * 1000
-    logger.api_response("AUTO (All 3)", 200, duration_ms)
-    
+    logger.api_response("AUTO (All 4)", 200, duration_ms)
+
     # Combine and format results
-    combined = ["**🚀 Combined Search Results (All 3 Providers)**\n"]
-    combined.append(f"*Query completed in {duration_ms:.0f}ms using Tavily + Perplexity + DuckDuckGo*\n")
+    combined = ["**🚀 Combined Search Results (All 4 Providers)**\n"]
+    combined.append(f"*Query completed in {duration_ms:.0f}ms using Tavily + Perplexity + DuckDuckGo + Scrapling*\n")
     combined.append("---\n")
-    
+
     for provider_name, result in results:
-        icon = {"tavily": "🔵", "perplexity": "🟣", "duckduckgo": "🟢"}.get(provider_name, "⚪")
+        icon = {"tavily": "🔵", "perplexity": "🟣", "duckduckgo": "🟢", "scrapling": "🕷️"}.get(provider_name, "⚪")
         combined.append(f"\n### {icon} {provider_name.capitalize()} Results\n")
         combined.append(result)
         combined.append("\n")
-    
-    combined.append("\n---\n*Combined from 3 sources for comprehensive coverage*")
-    
+
+    combined.append("\n---\n*Combined from 4 sources for comprehensive coverage (including deep-scraped content)*")
+
     return "\n".join(combined)
 
 
@@ -240,6 +256,71 @@ def _web_search_duckduckgo(query: str, max_results: int) -> str:
     except Exception as e:
         logger.error(f"Web Search Error (DuckDuckGo)", e)
         return f"Search error: {str(e)}"
+
+
+def _web_search_scrapling(query: str, max_results: int) -> str:
+    """Scrapling deep-scrape search - discovers URLs via DDG then extracts full page content."""
+    logger = get_logger()
+    logger.separator(f"WEB SEARCH (Scrapling Deep Scrape): {query}")
+
+    try:
+        from backend.search.engines.scrapling_engine import get_scrapling_engine
+        import asyncio
+
+        logger.api_request("Scrapling", "deep_scrape", f"query='{query}', max_results={max_results}")
+
+        start_time = time.time()
+        engine = get_scrapling_engine()
+
+        # Run async search in sync context
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, engine.search(query, max_results))
+                results = future.result()
+        else:
+            results = loop.run_until_complete(engine.search(query, max_results))
+
+        duration_ms = (time.time() - start_time) * 1000
+
+        logger.api_response("Scrapling", 200, duration_ms)
+        logger.debug(f"Scrapling returned {len(results)} results")
+
+        formatted_results = ["**Sources (Scrapling - Deep Scraped):**"]
+        for i, result in enumerate(results, 1):
+            title = result.get("title", "No title")
+            url = result.get("url", "")
+            content = result.get("content", "")[:500]  # Longer snippets — that's the point
+            source_type = result.get("source", "scrapling")
+            source_badge = {
+                "scrapling": "🕷️ Deep",
+                "scrapling_cached": "⚡ Cached",
+                "scrapling_fallback": "🔄 Fallback",
+                "scrapling_ddg_fallback": "🟢 DDG",
+            }.get(source_type, "🕷️")
+            formatted_results.append(
+                f"\n{i}. [{source_badge}] **{title}**\n   URL: {url}\n   {content}..."
+            )
+
+        return "\n".join(formatted_results)
+
+    except ImportError:
+        logger.debug("Scrapling not installed, falling back to DuckDuckGo")
+        return _web_search_duckduckgo(query, max_results)
+    except Exception as e:
+        logger.error(f"Web Search Error (Scrapling)", e)
+        # Graceful fallback to DuckDuckGo
+        logger.debug("Scrapling failed, falling back to DuckDuckGo")
+        try:
+            return _web_search_duckduckgo(query, max_results)
+        except Exception:
+            return f"Search error: {str(e)}"
 
 
 @tool

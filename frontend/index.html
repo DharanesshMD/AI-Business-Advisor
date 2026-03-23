@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
@@ -68,6 +68,7 @@
                             <option value="tavily">Tavily</option>
                             <option value="perplexity">Perplexity</option>
                             <option value="duckduckgo">DuckDuckGo (Free)</option>
+                            <option value="scrapling">🕷️ Scrapling (Deep)</option>
                         </select>
                     </div>
 
@@ -209,7 +210,47 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=2"></script>
+    <script src="app.js?v=2"></script>
+    <script>
+        // Debug helper: show WebSocket status on the page
+        (function(){
+            const dbg = document.createElement('div');
+            dbg.id = 'ws-debug';
+            dbg.style.position = 'fixed';
+            dbg.style.right = '12px';
+            dbg.style.top = '12px';
+            dbg.style.zIndex = 9999;
+            dbg.style.padding = '8px 12px';
+            dbg.style.background = 'rgba(0,0,0,0.6)';
+            dbg.style.color = '#fff';
+            dbg.style.borderRadius = '8px';
+            dbg.style.fontSize = '13px';
+            dbg.style.fontFamily = 'Inter, Arial, sans-serif';
+            dbg.textContent = 'WS: initializing...';
+            document.body.appendChild(dbg);
+
+            function set(text, color){ dbg.textContent = 'WS: ' + text; dbg.style.background = color || 'rgba(0,0,0,0.6)'; }
+
+            // Try to resolve URL from global CONFIG if available, else fallback
+            let url = null;
+            let fallbackUrl = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + '/ws/chat';
+            try{ url = (typeof CONFIG !== 'undefined' && CONFIG.WS_URL) ? CONFIG.WS_URL : fallbackUrl; }catch(e){ url = fallbackUrl; }
+            const info = document.createElement('div'); info.style.fontSize='11px'; info.style.opacity='0.9'; info.style.marginTop='6px'; info.textContent = url; dbg.appendChild(info);
+
+            try{
+                const ws = new WebSocket(url);
+                set('connecting', 'rgba(255,165,0,0.9)');
+                ws.onopen = () => set('open', 'rgba(34,197,94,0.95)');
+                ws.onmessage = (m) => {
+                    try{ const d = JSON.parse(m.data); set('msg: '+d.type); }catch(e){ set('msg'); }
+                };
+                ws.onerror = (e) => set('error', 'rgba(239,68,68,0.95)');
+                ws.onclose = (c) => set('closed ('+ (c.code||'') +')', 'rgba(120,120,120,0.95)');
+                // expose for console
+                window.__ws_debug = ws;
+            }catch(err){ set('exception', 'rgba(239,68,68,0.95)'); console.error('WS debug connect error', err); }
+        })();
+    </script>
 </body>
 
 </html>

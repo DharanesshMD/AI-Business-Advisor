@@ -3,10 +3,12 @@ FastAPI application entry point — slim orchestrator.
 All endpoint logic lives in backend/routers/.
 """
 
+import os
 import sqlite3
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from langgraph.checkpoint.sqlite import SqliteSaver
 from slowapi.errors import RateLimitExceeded
@@ -107,13 +109,18 @@ app.include_router(portfolio.router)
 app.include_router(validation.router)
 
 # ---------------------------------------------------------------------------
-# Core routes
+# Frontend Serving / Core routes
 # ---------------------------------------------------------------------------
 
-@app.get("/")
-@app.head("/")
-async def root():
-    return {"status": "AI Business Advisor API is running"}
+frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+if os.path.isdir(frontend_dir):
+    # Mount the frontend directory to serve the UI at the root
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+else:
+    @app.get("/")
+    @app.head("/")
+    async def root():
+        return {"status": "AI Business Advisor API is running (Frontend not found)"}
 
 @app.get("/health", response_model=HealthResponse)
 @app.head("/health", response_model=HealthResponse)

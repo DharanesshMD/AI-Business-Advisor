@@ -49,6 +49,9 @@ openpyxl==3.1.2
 # Free Search (DuckDuckGo)
 ddgs==9.5.0
 
+# Deep Web Scraping (Scrapling)
+scrapling[fetchers]
+
 # Testing
 pytest==8.3.4
 pytest-asyncio==0.24.0
