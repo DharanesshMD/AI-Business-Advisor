@@ -52,7 +52,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U advisor" ]
+      test: [ "CMD-SHELL", "pg_isready -U advisor -d ai_advisor" ]
       interval: 10s
       timeout: 5s
       retries: 5

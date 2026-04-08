@@ -63,6 +63,15 @@ def web_search(query: str, max_results: int = 5) -> str:
 
 
 def _web_search_auto(query: str, max_results: int) -> str:
+    """Query all 4 search providers in parallel and return fast provider results quickly.
+
+    Improvements:
+    - Check provider-level cache for tavily/perplexity/duckduckgo before calling external APIs
+    - Use concurrent.futures.wait with a short initial timeout to collect fast results,
+      then allow slower providers to continue in background without blocking the combined response.
+    - Add simple telemetry logging for per-provider latency and cache hits.
+    """
+
     """Query all 4 search providers in parallel and combine results.
     Uses as_completed with 5s timeout so scrapling doesn't block fast providers."""
     import concurrent.futures
@@ -95,21 +104,107 @@ def _web_search_auto(query: str, max_results: int) -> str:
         except Exception as e:
             return ("scrapling", f"Error: {str(e)}")
 
-    # Run all 4 searches in parallel with as_completed + timeout
+    # Run all 4 searches in parallel, but return quickly for fast providers.
     results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [
-            executor.submit(search_tavily),
-            executor.submit(search_perplexity),
-            executor.submit(search_duckduckgo),
-            executor.submit(search_scrapling),
-        ]
-        # Use as_completed with 5s timeout — scrapling may be slower
-        for future in concurrent.futures.as_completed(futures, timeout=15):
+
+    # Provider-level short-term cache (tavily, perplexity, duckduckgo)
+    try:
+        from backend.search.engines.provider_cache import get_cached_provider, set_cached_provider
+    except Exception:
+        get_cached_provider = lambda q, p: None
+        set_cached_provider = lambda q, p, r: None
+
+    provider_callables = {
+        "tavily": search_tavily,
+        "perplexity": search_perplexity,
+        "duckduckgo": search_duckduckgo,
+        "scrapling": search_scrapling,
+    }
+
+    # 1) Check cache for fast providers and collect hits immediately
+    cached_hits = set()
+    for name in ("tavily", "perplexity", "duckduckgo"):
+        try:
+            cached = get_cached_provider(query, name)
+            if cached and isinstance(cached, dict) and "result" in cached:
+                results.append((name, cached["result"]))
+                cached_hits.add(name)
+                logger.debug(f"Auto mode: provider cache HIT for {name}")
+        except Exception as e:
+            logger.debug(f"Auto mode: provider cache read error for {name}: {e}")
+
+    # 2) Submit remaining providers to executor
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+    futures_map: dict[str, concurrent.futures.Future] = {}
+    for name, fn in provider_callables.items():
+        if name in cached_hits:
+            continue
+        futures_map[name] = executor.submit(fn)
+
+    # 3) Wait briefly for the fastest provider(s) to complete so we can respond quickly
+    try:
+        if futures_map:
+            done, not_done = concurrent.futures.wait(
+                list(futures_map.values()), timeout=3, return_when=concurrent.futures.FIRST_COMPLETED
+            )
+
+            # collect completed results
+            for fut in done:
+                try:
+                    item = fut.result(timeout=0)
+                    # item is expected to be (provider_name, result_str)
+                    if isinstance(item, tuple) and len(item) == 2:
+                        results.append(item)
+                    else:
+                        # Best-effort: try to infer provider name by matching
+                        results.append(("unknown", str(item)))
+                except Exception as e:
+                    logger.debug(f"Auto mode: provider future error collecting initial results: {e}")
+
+            # Also collect any other futures that finished during the wait
+            for name, fut in list(futures_map.items()):
+                if fut.done() and fut not in done:
+                    try:
+                        item = fut.result(timeout=0)
+                        if isinstance(item, tuple) and len(item) == 2:
+                            results.append(item)
+                        else:
+                            results.append((name, str(item)))
+                    except Exception:
+                        # ignore; we'll let callbacks handle caching/errors
+                        pass
+    except Exception as e:
+        logger.debug(f"Auto mode: wait error: {e}")
+
+    # 4) Attach callbacks to remaining futures to cache their results when they finish
+    def _make_callback(provider_name: str):
+        def _cb(fut: concurrent.futures.Future):
             try:
-                results.append(future.result(timeout=5))
-            except (concurrent.futures.TimeoutError, Exception) as e:
-                logger.debug(f"Auto mode: a provider timed out or errored: {e}")
+                item = fut.result()
+                if isinstance(item, tuple) and len(item) == 2:
+                    _, out = item
+                else:
+                    out = json.dumps(item)
+                try:
+                    set_cached_provider(query, provider_name, {"result": out})
+                    logger.debug(f"Auto mode: cached result for provider {provider_name}")
+                except Exception as e:
+                    logger.debug(f"Auto mode: failed to set provider cache for {provider_name}: {e}")
+            except Exception as e:
+                logger.debug(f"Auto mode: provider {provider_name} finished with error: {e}")
+        return _cb
+
+    for name, fut in list(futures_map.items()):
+        try:
+            fut.add_done_callback(_make_callback(name))
+        except Exception:
+            pass
+
+    # 5) Shutdown executor without waiting so background providers can finish asynchronously
+    try:
+        executor.shutdown(wait=False)
+    except Exception:
+        pass
 
     duration_ms = (time.time() - start_time) * 1000
     logger.api_response("AUTO (All 4)", 200, duration_ms)

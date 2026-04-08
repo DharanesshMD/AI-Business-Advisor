@@ -168,22 +168,30 @@ class ScraplingEngine:
         ddgs = DDGS()
 
         # A. Site-specific searches (1 DDG call per site, max_results=2 each)
-        for domain in list(target_sites.keys())[:4]:  # Max 4 site: queries
-            try:
-                site_query = f"site:{domain} {query}"
-                raw = list(ddgs.text(site_query, max_results=2))
-                for r in raw:
-                    url = r.get("href", r.get("link", ""))
-                    if url and url not in seen_urls:
-                        seen_urls.add(url)
-                        discovered.append({
-                            "title": r.get("title", ""),
-                            "url": url,
-                            "snippet": r.get("body", r.get("snippet", "")),
-                            "domain": domain,
-                        })
-            except Exception as e:
-                self.logger.debug(f"DDG site: search failed for {domain}: {e}")
+        # Parallelize per-domain DDG calls using ThreadPoolExecutor to reduce wall-clock time
+        domains = list(target_sites.keys())[:4]
+        if domains:
+            futures = []
+            with ThreadPoolExecutor(max_workers=min(4, len(domains))) as executor:
+                for domain in domains:
+                    site_query = f"site:{domain} {query}"
+                    futures.append(executor.submit(lambda q=site_query: list(ddgs.text(q, max_results=2))))
+
+                for fut in as_completed(futures, timeout=8):
+                    try:
+                        raw = fut.result()
+                        for r in raw:
+                            url = r.get("href", r.get("link", ""))
+                            if url and url not in seen_urls:
+                                seen_urls.add(url)
+                                discovered.append({
+                                    "title": r.get("title", ""),
+                                    "url": url,
+                                    "snippet": r.get("body", r.get("snippet", "")),
+                                    "domain": domain,
+                                })
+                    except Exception as e:
+                        self.logger.debug(f"DDG site: parallel search failed: {e}")
 
         # B. General search to fill remaining slots
         remaining = max(max_results - len(discovered), 2)

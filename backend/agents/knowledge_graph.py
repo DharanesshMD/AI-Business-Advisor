@@ -24,26 +24,39 @@ class KnowledgeGraphAgent:
     def __init__(self):
         self.settings = get_settings()
         self.driver = None
+        self.enabled = False
         
         # Initialize Neo4j connection
         if self.settings.NEO4J_URI:
             try:
+                # Use a custom configuration to fail fast if not available
+                # connection_timeout controls the initial TCP connection
                 self.driver = GraphDatabase.driver(
                     self.settings.NEO4J_URI,
-                    auth=(self.settings.NEO4J_USER, self.settings.NEO4J_PASSWORD)
+                    auth=(self.settings.NEO4J_USER, self.settings.NEO4J_PASSWORD),
+                    connection_timeout=2.0,  # Fail fast (2s)
+                    max_connection_lifetime=60,
                 )
                 self._verify_connectivity()
             except Exception as e:
-                logger.error(f"Neo4j connection failed: {e}")
+                logger.warning(f"Neo4j connection could not be established: {e}")
+                self.driver = None
     
     def _verify_connectivity(self):
         """Verify Neo4j connection is active."""
-        if self.driver:
-            try:
-                self.driver.verify_connectivity()
-                logger.info("Connected to Neo4j Knowledge Graph.")
-            except Exception as e:
-                logger.error(f"Neo4j connectivity check failed: {e}")
+        if not self.driver:
+            return
+
+        try:
+            # We use a session with a short timeout for the connectivity check
+            with self.driver.session() as session:
+                session.run("RETURN 1").single()
+            self.enabled = True
+            logger.info("Connected to Neo4j Knowledge Graph.")
+        except Exception as e:
+            logger.warning(f"Neo4j Knowledge Graph is unavailable (feature disabled): {e}")
+            self.driver = None
+            self.enabled = False
     
     def close(self):
         """Close the Neo4j driver."""

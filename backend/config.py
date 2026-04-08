@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     SCRAPLING_TIMEOUT_SECONDS: int = 15
     SCRAPLING_CACHE_TTL: int = 7200          # Page-level cache: 2 hours
     SCRAPLING_QUERY_CACHE_TTL: int = 1800    # Query-level cache: 30 minutes
+    # Provider query cache for non-scrapling providers (Tavily/Perplexity/DDG)
+    PROVIDER_QUERY_CACHE_TTL: int = 120  # seconds, short TTL for interactive UX
+
     SCRAPLING_MAX_CONTENT_LENGTH: int = 5000  # Max chars per scraped page
 
     # Database & Cache
